@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-exconnect
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_BUILD_DEPENDS:=luci-base/host
 
 include $(INCLUDE_DIR)/package.mk
@@ -12,7 +12,7 @@ define Package/luci-app-exconnect
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=LuCI interface for ExConnect
-  DEPENDS:=+luci-base +luci-i18n-base-ru +exconnect
+  DEPENDS:=+luci-light +luci-i18n-base-ru +exconnect
   PKGARCH:=all
 endef
 

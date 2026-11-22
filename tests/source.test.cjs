@@ -61,6 +61,7 @@ test('OpenWrt packages reference the service and preserve its UCI configuration'
     assert.match(service, /\+xray-core\b/);
     assert.match(service, /\/etc\/config\/exconnect\b/);
     assert.match(app, /\+exconnect\b/);
+    assert.match(app, /\+luci-light\b/);
     assert.match(app, /\bpo2lmo\b.*\bexconnect\.ru\.lmo\b/);
     assert.ok(fs.existsSync(path.join(backend, 'files/etc/init.d/exconnect')));
     assert.ok(fs.existsSync(path.join(backend, 'files/usr/libexec/rpcd/exconnect')));
@@ -144,6 +145,7 @@ test('Russian catalog translates LuCI menu labels and literal UI strings', () =>
 
 test('OpenWrt shell entry points parse', { skip: process.platform === 'win32' }, () => {
     const scripts = filesUnder(path.join(backend, 'files')).filter(file => /^#!\/bin\/sh\b/.test(read(file)));
-    scripts.push(path.join(__dirname, 'runtime.sh'), path.join(__dirname, '../scripts/install-openwrt.sh'));
+    scripts.push(...filesUnder(__dirname).filter(file => file.endsWith('.sh')));
+    scripts.push(path.join(__dirname, '../scripts/install-openwrt.sh'));
     for (const filename of scripts) run('sh', ['-n', filename]);
 });

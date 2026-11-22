@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=exconnect
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -27,7 +27,8 @@ endef
 
 define Package/exconnect/postinst
 #!/bin/sh
-[ -n "$$IPKG_INSTROOT" ] || /etc/init.d/rpcd reload
+[ -n "$${IPKG_INSTROOT}" ] || /etc/init.d/rpcd reload >/dev/null 2>&1
+exit 0
 endef
 
 define Package/exconnect/install

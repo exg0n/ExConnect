@@ -6,6 +6,8 @@ Run the source tests from the repository root with Node.js 20 or newer.
 node --test tests/source.test.cjs
 ```
 
+GitHub Actions builds both APKs, installs them with the ExConnect installer in a clean OpenWrt x86/64 filesystem and checks the installed files and dependencies. The install test substitutes fixture responses for GitHub and uses the real `apk`. A separate test starts the installed Xray launcher and sends HTTP and SOCKS requests through a controlled upstream in an isolated network namespace. The workflow uploads packages after these checks pass.
+
 Use an isolated OpenWrt 25.12.5 VM or spare router for the functional smoke test. An [official generic x86/64 image](https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/) can serve as a VM target. Use packages built for the test device and record the firmware, package, and Xray versions with each run.
 
 With the service package installed, copy `tests/runtime.sh` to the target and run `sh /tmp/runtime.sh`. This tests configuration generation and asks the installed Xray to load both flavors of `.dat` data. Temporary files and a separate UCI directory keep the checks independent of active router settings. The same check can run in an x86_64 OpenWrt chroot with the runtime dependencies installed.

@@ -59,6 +59,54 @@ jobs:
           ' bash "$rootfs"
       - name: Build packages
         run: bash scripts/build-openwrt.sh "$RUNNER_TEMP/openwrt-sdk"
+      - name: Test installation of the built packages
+        run: |
+          set -- dist/exconnect-[0-9]*.apk dist/luci-app-exconnect-[0-9]*.apk
+          test "$#" -eq 2
+          test -f "$1"
+          test -f "$2"
+          rootfs="$RUNNER_TEMP/openwrt-install-test"
+          mkdir "$rootfs"
+          sudo tar -xzf "$RUNNER_TEMP/$ROOTFS_ARCHIVE" -C "$rootfs"
+          sudo mkdir -p "$rootfs/dev" "$rootfs/proc" "$rootfs/tmp/lock"
+          sudo cp -L --remove-destination /etc/resolv.conf "$rootfs/etc/resolv.conf"
+          python3 -m zipfile -c "$RUNNER_TEMP/exconnect-apks.zip" "$@"
+          sudo cp "$RUNNER_TEMP/exconnect-apks.zip" scripts/install-openwrt.sh \
+            tests/installer-smoke.sh tests/runtime.sh tests/proxy-smoke.sh "$rootfs/tmp/"
+          sudo unshare --mount --propagation private bash -e -s -- "$rootfs" <<'HOST'
+          rootfs=$1
+          mount --bind /dev "$rootfs/dev"
+          mount -t proc proc "$rootfs/proc"
+          chroot "$rootfs" /bin/sh -e -s <<'OPENWRT'
+          apk update
+          # Treat the chroot as an offline image so package hooks cannot start services or load modules.
+          IPKG_INSTROOT=/ apk add jsonfilter unzip
+          IPKG_INSTROOT=/ /bin/sh /tmp/installer-smoke.sh /tmp/install-openwrt.sh /tmp/exconnect-apks.zip
+          for package in exconnect luci-app-exconnect xray-core luci-light uhttpd kmod-nft-tproxy; do
+            apk info -e "$package"
+          done
+          for tool in xray ucode curl nft ip ss flock; do
+            command -v "$tool"
+          done
+          test "$(uci -q get exconnect.main.enabled)" = 0
+          test -x /etc/init.d/exconnect
+          test -x /usr/libexec/exconnect/control
+          test -x /usr/libexec/exconnect/run
+          test -x /usr/libexec/rpcd/exconnect
+          test -x /usr/libexec/rpcd/exconnect-subscriptions
+          test -s /usr/share/luci/menu.d/luci-app-exconnect.json
+          test -s /usr/share/rpcd/acl.d/luci-app-exconnect.json
+          test -s /usr/lib/lua/luci/i18n/exconnect.ru.lmo
+          test -s /www/luci-static/resources/exconnect/client.js
+          test -s /www/luci-static/resources/view/exconnect/overview.js
+          IPKG_INSTROOT=/ apk add coreutils-base64 diffutils
+          /bin/sh /tmp/runtime.sh
+          OPENWRT
+          unshare --net bash -e -c '
+            ip link set lo up
+            chroot "$1" /bin/sh /tmp/proxy-smoke.sh --disposable-openwrt
+          ' bash "$rootfs"
+          HOST
       - uses: actions/upload-artifact@v4
         with:
           name: exconnect-openwrt-25.12.5-x86-64
