@@ -22,17 +22,13 @@ df -h /overlay /tmp
 
 ### Автоматическое скачивание и установка
 
-Откройте [GitHub Actions](https://github.com/exg0n/ExConnect/actions/workflows/openwrt.yml) и убедитесь, что у успешной сборки ветки `main`, запущенной после отправки коммита, есть архив `exconnect-openwrt-25.12.5` в разделе **Artifacts**. Оба пакета не содержат архитектурно-зависимых исполняемых файлов. GitHub Actions собирает их на SDK `x86/64` и проверяет установку на OpenWrt `x86/64` и в файловой системе официальной прошивки для NanoPi R3S (`rockchip/armv8`, ARM64). GitHub хранит архивы сборок ограниченное время.
-
-Репозиторий приватный. Создайте [fine-grained токен GitHub](https://github.com/settings/personal-access-tokens/new) с доступом только к `ExConnect` и правами **Contents → Read-only** и **Actions → Read-only**. Команда запросит токен и скроет его при вводе.
-
-Подключитесь по SSH к роутеру, например `ssh root@192.168.1.1`. Выполните в оболочке роутера одну строку:
+Выполните одну команду в SSH-сессии роутера под `root`:
 
 ```sh
-(set -eu; grep -qx "DISTRIB_RELEASE='25.12.5'" /etc/openwrt_release; apk update; apk add ca-bundle curl jsonfilter unzip; printf 'GitHub token: '; IFS= read -rs token; printf '\n'; test -n "$token"; installer=$(mktemp /tmp/exconnect-installer.XXXXXX); trap 'rm -f "$installer"' EXIT; printf 'Authorization: Bearer %s\n' "$token" | curl -q -fsS --proto '=https' -H @- -H 'Accept: application/vnd.github.raw+json' -o "$installer" 'https://api.github.com/repos/exg0n/ExConnect/contents/scripts/install-openwrt.sh?ref=main'; printf '%s\n' "$token" | sh "$installer")
+(f=$(mktemp) && trap 'rm -f "$f"' EXIT && wget -T 30 -O "$f" https://raw.githubusercontent.com/exg0n/ExConnect/main/scripts/install-openwrt.sh && sh "$f")
 ```
 
-Команда скачает установщик из `main`, возьмёт два `.apk` из последней успешной сборки этой ветки и установит их. `apk` скачает Xray и остальные зависимости из настроенных репозиториев OpenWrt. По окончании откройте **Службы → ExConnect** в LuCI.
+Установщик загружает оба `.apk` из [последнего релиза GitHub](https://github.com/exg0n/ExConnect/releases/latest). `apk` устанавливает Xray и остальные зависимости из репозиториев OpenWrt. По окончании откройте **Службы → ExConnect** в LuCI. Публикация новой версии проходит после проверок на x86/64 и ARM64 (NanoPi R3S).
 
 ### Ручная сборка и установка
 

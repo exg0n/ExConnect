@@ -141,3 +141,35 @@ jobs:
           grep -qx "DISTRIB_ARCH='aarch64_generic'" "$rootfs/etc/openwrt_release"
       - name: Test installation in NanoPi R3S userspace
         run: bash tests/package-install-ci.sh "$RUNNER_TEMP/openwrt-r3s-rootfs" dist
+
+  release:
+    needs: [sdk, arm64]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: exconnect-release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: exconnect-openwrt-25.12.5
+          path: dist
+      - name: Publish verified packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -- dist/exconnect-[0-9]*.apk dist/luci-app-exconnect-[0-9]*.apk
+          test "$#" -eq 2 && test -f "$1" && test -f "$2" || exit 1
+          version=${1#dist/exconnect-}
+          version=${version%.apk}
+          test "$2" = "dist/luci-app-exconnect-$version.apk"
+          asset=exconnect-openwrt-25.12.5.zip
+          tag=v$version
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq "$asset"; then
+            exit 0
+          fi
+          python3 -m zipfile -c "$asset" "$@"
+          gh release create "$tag" "$asset" --target "$GITHUB_SHA" --latest \
+            --title "ExConnect $version" --notes 'OpenWrt 25.12.5 packages tested on x86/64 and NanoPi R3S (ARM64).'

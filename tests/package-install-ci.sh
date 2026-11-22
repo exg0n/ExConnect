@@ -25,9 +25,7 @@ rootfs=$1
 mount --bind /dev "$rootfs/dev"
 mount -t proc proc "$rootfs/proc"
 chroot "$rootfs" /bin/sh -e -s <<'OPENWRT'
-apk update
 # Treat the chroot as an offline image so package hooks do not start services or load modules.
-IPKG_INSTROOT=/ apk --preserve-env add jsonfilter unzip
 /bin/sh /tmp/installer-smoke.sh /tmp/install-openwrt.sh /tmp/exconnect-apks.zip
 for package in exconnect luci-app-exconnect xray-core luci-light uhttpd kmod-nft-tproxy; do
     apk info -e "$package"
