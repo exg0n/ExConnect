@@ -36,6 +36,8 @@ fixture_uci() {
 }
 
 set_fixture() {
+	# Reset pending UCI changes as well as the configuration file.
+	rm -f "$fixture/delta/exconnect"
 	cat > "$fixture/exconnect" <<EOF
 config service 'main'
 	option enabled '1'
@@ -168,6 +170,10 @@ expect_value '@.routing.rules[1].ip[0]' 'ext:qa-geoip.dat:fixture'
 
 set_fixture 'socks5://qa:pass@example.test:1080'
 fixture_uci delete exconnect.main.profile
+if fixture_uci -q get exconnect.site_data.name || fixture_uci -q get exconnect.ip_data.name; then
+	printf '%s\n' 'A reset fixture retained RunetFreedom asset sections' >&2
+	exit 1
+fi
 fixture_uci set exconnect.main.routing_mode=text
 fixture_uci set 'exconnect.main.routing_text=default: direct
 domain(geosite:fixture)->block
