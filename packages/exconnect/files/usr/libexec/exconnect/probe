@@ -64,17 +64,21 @@ while [ "$attempt" -lt 4 ]; do
 done
 [ "$attempt" -lt 4 ] || fail 'The temporary Xray listener did not start.'
 
-if ! stats=$(LC_ALL=C curl -q --fail --silent --noproxy '' \
+curl_result=0
+stats=$(LC_ALL=C curl -q --fail --silent --noproxy '' \
 	--proxy "socks5h://127.0.0.1:$port" --proto '=https' \
 	--connect-timeout 5 --max-time 12 --max-filesize 2000000 \
 	--output /dev/null --write-out '%{http_code} %{time_starttransfer} %{speed_download} %{size_download}' \
-	"https://speed.cloudflare.com/__down?bytes=$size"); then
+	"https://speed.cloudflare.com/__down?bytes=$size") || curl_result=$?
+if [ "$curl_result" -ne 0 ] && { [ "$kind" != speed ] || [ "$curl_result" -ne 28 ]; }; then
 	fail 'The test endpoint could not be reached through this profile.'
 fi
 
-metrics=$(printf '%s\n' "$stats" | LC_ALL=C awk -v bytes="$size" '
+metrics=$(printf '%s\n' "$stats" | LC_ALL=C awk -v bytes="$size" -v status="$curl_result" '
 	NF == 4 && $1 == 200 && $2 ~ /^[0-9]+([.][0-9]+)?$/ &&
-	$3 ~ /^[0-9]+([.][0-9]+)?$/ && $4 ~ /^[0-9]+$/ && $4 == bytes {
+	$3 ~ /^[0-9]+([.][0-9]+)?$/ && $4 ~ /^[0-9]+$/ &&
+	((status == 0 && $4 == bytes) ||
+	 (status == 28 && $4 > 0 && $4 <= bytes && $3 > 0)) {
 		printf "%.0f %.3f %d\n", $2 * 1000, $3 * 8 / 1000000, $4
 	}')
 [ -n "$metrics" ] || fail 'The test endpoint returned an unexpected response.'

@@ -40,6 +40,8 @@ trap 'exit 1' HUP INT TERM
 
 check_diagnostics() {
 	kind=$1
+	expected_speed=${2:-8}
+	expected_bytes=${3:-2000000}
 	printf '{"section":"upstream","kind":"%s"}\n' "$kind" |
 		EXCONNECT_PROBE_FIXTURE="$fixture" PATH="$fixture/probe-tools:$PATH" \
 			/usr/libexec/rpcd/exconnect call probe > "$fixture/probe-result.json"
@@ -51,8 +53,8 @@ check_diagnostics() {
 		[ "$(jsonfilter -i "$fixture/probe-result.json" -e '@.latency_ms')" -eq 125 ]
 	else
 		value=$(jsonfilter -i "$fixture/probe-result.json" -e '@.speed_mbps')
-		awk -v value="$value" 'BEGIN { exit !(value == 8) }'
-		[ "$(jsonfilter -i "$fixture/probe-result.json" -e '@.bytes')" -eq 2000000 ]
+		awk -v value="$value" -v expected="$expected_speed" 'BEGIN { exit !(value == expected) }'
+		[ "$(jsonfilter -i "$fixture/probe-result.json" -e '@.bytes')" -eq "$expected_bytes" ]
 	fi
 	port=$(cat "$fixture/probe-port")
 	[ -z "$(ss -H -ltn "sport = :$port")" ] || fail 'The temporary diagnostic listener was left open.'
@@ -79,9 +81,19 @@ esac
 [ "$port" -ge 18900 ] && [ "$port" -le 18915 ]
 [ -n "$(ss -H -ltn "sport = :$port")" ]
 printf '%s\n' "$port" > "$EXCONNECT_PROBE_FIXTURE/probe-port"
+/usr/bin/curl -q -fsS --connect-timeout 2 --max-time 3 --noproxy '' \
+	--proxy "$proxy" http://127.0.0.1:17883/probe.txt \
+	> "$EXCONNECT_PROBE_FIXTURE/probe-response"
+cmp "$EXCONNECT_PROBE_FIXTURE/www/probe.txt" "$EXCONNECT_PROBE_FIXTURE/probe-response"
 case "$url" in
 	*'?bytes=0') printf '200 0.125000 0 0\n' ;;
-	*'?bytes=2000000') printf '200 0.125000 1000000 2000000\n' ;;
+	*'?bytes=2000000')
+		if [ -e "$EXCONNECT_PROBE_FIXTURE/probe-partial-speed" ]; then
+			printf '200 0.125000 10000 120000\n'
+			exit 28
+		fi
+		printf '200 0.125000 1000000 2000000\n'
+		;;
 	*) exit 1 ;;
 esac
 EOF
@@ -120,6 +132,21 @@ config profile 'upstream'
 	option uri 'socks5://fixture:test-only@127.0.0.1:17882'
 EOF
 
+uhttpd -f -p 127.0.0.1:17883 -h "$fixture/www" > "$fixture/uhttpd.log" 2>&1 &
+httpd_pid=$!
+xray run -config "$fixture/upstream.json" > "$fixture/upstream.log" 2>&1 &
+upstream_pid=$!
+attempt=0
+until [ -n "$(ss -H -ltn 'sport = :17882')" ] &&
+	curl -q -fsS --connect-timeout 2 --max-time 3 --noproxy '*' \
+		http://127.0.0.1:17883/probe.txt > "$fixture/response" 2> "$fixture/curl.log"; do
+	attempt=$((attempt + 1))
+	[ "$attempt" -lt 10 ] || fail 'The diagnostic test servers did not start.'
+	kill -0 "$httpd_pid" "$upstream_pid" 2>/dev/null || fail 'A test server exited.'
+	sleep 1
+done
+cmp "$fixture/www/probe.txt" "$fixture/response"
+
 check_diagnostics latency
 [ ! -e "$runtime/ready" ]
 PATH="$fixture/probe-tools:$PATH" /usr/libexec/rpcd/exconnect call logs > "$fixture/log-result.json"
@@ -133,10 +160,6 @@ fi
 
 /usr/libexec/exconnect/control prepare > "$fixture/prepare.log" 2>&1 || fail 'ExConnect could not prepare its configuration.'
 
-uhttpd -f -p 127.0.0.1:17883 -h "$fixture/www" > "$fixture/uhttpd.log" 2>&1 &
-httpd_pid=$!
-xray run -config "$fixture/upstream.json" > "$fixture/upstream.log" 2>&1 &
-upstream_pid=$!
 /usr/libexec/exconnect/run > "$fixture/client.log" 2>&1 &
 client_pid=$!
 
@@ -157,6 +180,9 @@ for proxy in http://127.0.0.1:17881 socks5h://127.0.0.1:17880; do
 done
 
 check_diagnostics speed
+touch "$fixture/probe-partial-speed"
+check_diagnostics speed 0.08 120000
+rm "$fixture/probe-partial-speed"
 [ -s "$runtime/ready" ]
 kill -0 "$client_pid"
 probe http://127.0.0.1:17881
@@ -167,6 +193,15 @@ upstream_pid=
 
 # Keep the HTTP origin live while proving the proxy cannot bypass its configured upstream.
 probe '' || fail 'The test HTTP origin stopped responding.'
+printf '%s\n' '{"section":"upstream","kind":"latency"}' |
+	EXCONNECT_PROBE_FIXTURE="$fixture" PATH="$fixture/probe-tools:$PATH" \
+		/usr/libexec/rpcd/exconnect call probe > "$fixture/probe-result.json"
+[ "$(jsonfilter -i "$fixture/probe-result.json" -e '@.ok')" = false ] ||
+	fail 'Diagnostics accepted the stopped upstream.'
+port=$(cat "$fixture/probe-port")
+[ -z "$(ss -H -ltn "sport = :$port")" ] || fail 'The failed diagnostic listener was left open.'
+[ -s "$runtime/ready" ]
+kill -0 "$client_pid" 2>/dev/null || fail 'Diagnostics stopped the main Xray client.'
 for proxy in http://127.0.0.1:17881 socks5h://127.0.0.1:17880; do
 	if probe "$proxy" 2> "$fixture/curl.log"; then
 		fail "Traffic through $proxy bypassed the stopped upstream."
