@@ -19,7 +19,7 @@ jobs:
   sdk:
     needs: source
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       OPENWRT_URL: https://downloads.openwrt.org/releases/25.12.5/targets/x86/64
       SDK_ARCHIVE: openwrt-sdk-25.12.5-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst
@@ -39,8 +39,6 @@ jobs:
           printf '%s  %s\n' "$SDK_SHA256" "$RUNNER_TEMP/$SDK_ARCHIVE" | sha256sum --check
           mkdir "$RUNNER_TEMP/openwrt-sdk"
           tar --zstd -xf "$RUNNER_TEMP/$SDK_ARCHIVE" -C "$RUNNER_TEMP/openwrt-sdk" --strip-components=1
-      - name: Build packages
-        run: bash scripts/build-openwrt.sh "$RUNNER_TEMP/openwrt-sdk"
       - name: Test Xray configuration in OpenWrt userspace
         run: |
           curl --fail --location --retry 3 --output "$RUNNER_TEMP/$ROOTFS_ARCHIVE" "$OPENWRT_URL/$ROOTFS_ARCHIVE"
@@ -48,7 +46,7 @@ jobs:
           rootfs="$RUNNER_TEMP/openwrt-rootfs"
           mkdir "$rootfs"
           sudo tar -xzf "$RUNNER_TEMP/$ROOTFS_ARCHIVE" -C "$rootfs"
-          sudo mkdir -p "$rootfs/dev" "$rootfs/proc" "$rootfs/tmp" "$rootfs/usr/libexec/exconnect"
+          sudo mkdir -p "$rootfs/dev" "$rootfs/proc" "$rootfs/tmp/lock" "$rootfs/usr/libexec/exconnect"
           sudo cp -L --remove-destination /etc/resolv.conf "$rootfs/etc/resolv.conf"
           sudo cp tests/runtime.sh "$rootfs/tmp/runtime.sh"
           sudo cp packages/exconnect/files/usr/libexec/exconnect/*.uc "$rootfs/usr/libexec/exconnect/"
@@ -56,9 +54,11 @@ jobs:
             rootfs=$1
             mount --bind /dev "$rootfs/dev"
             mount -t proc proc "$rootfs/proc"
-            chroot "$rootfs" /bin/sh -ec "apk update && apk add xray-core ucode ucode-mod-fs ucode-mod-uci jsonfilter"
+            chroot "$rootfs" /bin/sh -ec "apk update && apk add xray-core ucode ucode-mod-fs ucode-mod-uci jsonfilter coreutils-base64 diffutils"
             chroot "$rootfs" /bin/sh /tmp/runtime.sh
           ' bash "$rootfs"
+      - name: Build packages
+        run: bash scripts/build-openwrt.sh "$RUNNER_TEMP/openwrt-sdk"
       - uses: actions/upload-artifact@v4
         with:
           name: exconnect-openwrt-25.12.5-x86-64
