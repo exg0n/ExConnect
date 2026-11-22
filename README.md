@@ -28,7 +28,7 @@ df -h /overlay /tmp
 (f=$(mktemp) && trap 'rm -f "$f"' EXIT && wget -T 30 -O "$f" https://raw.githubusercontent.com/exg0n/ExConnect/main/scripts/install-openwrt.sh && sh "$f")
 ```
 
-Установщик загружает оба `.apk` из [последнего релиза GitHub](https://github.com/exg0n/ExConnect/releases/latest). `apk` устанавливает Xray и остальные зависимости из репозиториев OpenWrt. По окончании откройте **Службы → ExConnect** в LuCI. Публикация новой версии проходит после проверок на x86/64 и ARM64 (NanoPi R3S).
+Установщик скачивает архив с обоими `.apk` через `raw.githubusercontent.com`. Тот же архив доступен в [GitHub Releases](https://github.com/exg0n/ExConnect/releases/latest). `apk` устанавливает Xray и остальные зависимости из репозиториев OpenWrt. По окончании откройте **Службы → ExConnect** в LuCI. Публикация новой версии проходит после проверок на x86/64 и ARM64 (NanoPi R3S).
 
 ### Ручная сборка и установка
 

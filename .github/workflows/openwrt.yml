@@ -170,8 +170,25 @@ jobs:
           asset=exconnect-openwrt-25.12.5.zip
           tag=v$version
           if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq "$asset"; then
-            exit 0
+            gh release download "$tag" --pattern "$asset"
+          else
+            python3 -m zipfile -c "$asset" "$@"
+            gh release create "$tag" "$asset" --target "$GITHUB_SHA" --latest \
+              --title "ExConnect $version" --notes 'OpenWrt 25.12.5 packages tested on x86/64 and NanoPi R3S (ARM64).'
           fi
-          python3 -m zipfile -c "$asset" "$@"
-          gh release create "$tag" "$asset" --target "$GITHUB_SHA" --latest \
-            --title "ExConnect $version" --notes 'OpenWrt 25.12.5 packages tested on x86/64 and NanoPi R3S (ARM64).'
+
+          branch=openwrt-packages
+          if ! gh api "repos/$GH_REPO/git/ref/heads/$branch" --silent; then
+            gh api "repos/$GH_REPO/git/refs" -f ref="refs/heads/$branch" -f sha="$GITHUB_SHA" --silent
+          fi
+          endpoint="repos/$GH_REPO/contents/$asset"
+          current=$(gh api "$endpoint?ref=$branch" --jq .sha 2>/dev/null) || current=
+          if [ "$current" != "$(git hash-object "$asset")" ]; then
+            jq -n --arg branch "$branch" --arg message "Publish ExConnect $version for OpenWrt" \
+              --arg content "$(base64 -w 0 "$asset")" --arg sha "$current" \
+              '{branch:$branch,message:$message,content:$content} + (if $sha == "" then {} else {sha:$sha} end)' |
+              gh api --method PUT "$endpoint" --input - --silent
+          fi
+          curl -fsSL --retry 4 --retry-all-errors -o /tmp/exconnect-public.zip \
+            "https://raw.githubusercontent.com/$GH_REPO/$branch/$asset"
+          cmp "$asset" /tmp/exconnect-public.zip

@@ -15,7 +15,7 @@ cat > "$fixtures/wget" <<'MOCK_WGET'
 set -eu
 
 if [ "$#" -eq 5 ] && [ "$1" = -T ] && [ "$3" = -O ] &&
-    [ "$5" = 'https://github.com/exg0n/ExConnect/releases/latest/download/exconnect-openwrt-25.12.5.zip' ]; then
+    [ "$5" = 'https://raw.githubusercontent.com/exg0n/ExConnect/openwrt-packages/exconnect-openwrt-25.12.5.zip' ]; then
     cp "$EXCONNECT_SMOKE_ARCHIVE" "$4"
 else
     exec "$EXCONNECT_SMOKE_WGET" "$@"
