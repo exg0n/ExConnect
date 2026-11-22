@@ -1,0 +1,66 @@
+#!/bin/sh
+
+respond_error() {
+	. /usr/share/libubox/jshn.sh
+	json_init
+	json_add_boolean ok 0
+	json_add_string error "$1"
+	json_dump
+}
+
+case "$1:$2" in
+	list:)
+		printf '%s\n' '{"refresh":{"section":""}}'
+		exit 0
+		;;
+	call:refresh) ;;
+	*) exit 1 ;;
+esac
+
+. /usr/share/libubox/jshn.sh
+json_load "$(cat)" || { respond_error 'Invalid subscription request'; exit 0; }
+json_get_var section section
+case "$section" in
+	''|*[!a-zA-Z0-9_]*) respond_error 'Invalid subscription section'; exit 0 ;;
+esac
+
+exec 9>/var/lock/exconnect-subscriptions.lock
+if ! flock -n 9; then
+	respond_error 'A subscription refresh is already in progress'
+	exit 0
+fi
+
+umask 077
+work_dir=$(mktemp -d /tmp/exconnect-subscriptions.XXXXXX) || {
+	respond_error 'Could not create a temporary directory'
+	exit 0
+}
+trap 'rm -rf -- "$work_dir"' EXIT
+trap 'exit 1' HUP INT TERM
+
+helper=/usr/libexec/exconnect/subscriptions.uc
+url=$(ucode "$helper" url "$section" "$work_dir" 2>/dev/null) || {
+	respond_error 'Save the subscription before refreshing it'
+	exit 0
+}
+case "$url" in
+	*[![:graph:]]*|*\"*|*\\*) respond_error 'Enter a valid HTTPS subscription URL'; exit 0 ;;
+	https://?*) ;;
+	*) respond_error 'Enter a valid HTTPS subscription URL'; exit 0 ;;
+esac
+
+printf '%s' "$url" > "$work_dir/url"
+if ! printf 'url = "%s"\n' "$url" | curl -q --config - --fail --silent --location \
+	--proto '=https' --proto-redir '=https' --globoff --max-redirs 3 --connect-timeout 4 \
+	--max-time 10 --max-filesize 1048576 --output "$work_dir/body"; then
+	respond_error 'Could not download the subscription over HTTPS'
+	exit 0
+fi
+
+if ! ucode "$helper" prepare "$work_dir/body" > "$work_dir/links" ||
+	! ucode /usr/libexec/exconnect/generate.uc check-uri < "$work_dir/links" > "$work_dir/accepted"; then
+	respond_error 'Invalid subscription format or too many profiles'
+	exit 0
+fi
+
+ucode "$helper" save "$section" "$work_dir"

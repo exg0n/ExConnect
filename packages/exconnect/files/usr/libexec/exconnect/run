@@ -1,0 +1,76 @@
+#!/bin/sh
+
+runtime=/var/run/exconnect
+route_table=26100
+route_priority=11010
+route_mark=0x01000000/0x01000000
+pid=
+route4=
+route6=
+rule4=
+rule6=
+nft_installed=
+
+umask 077
+exec 8>"$runtime/core.lock"
+flock 8 || exit 1
+
+cleanup() {
+	[ ! -n "$nft_installed" ] || nft delete table inet exconnect
+	[ ! -n "$rule6" ] || ip -6 rule delete priority "$route_priority" fwmark "$route_mark" lookup "$route_table"
+	[ ! -n "$rule4" ] || ip -4 rule delete priority "$route_priority" fwmark "$route_mark" lookup "$route_table"
+	[ ! -n "$route6" ] || ip -6 route delete local ::/0 dev lo table "$route_table"
+	[ ! -n "$route4" ] || ip -4 route delete local 0.0.0.0/0 dev lo table "$route_table"
+	rm -f "$runtime/ready"
+	if [ -n "$pid" ]; then
+		kill "$pid" 2>/dev/null
+		wait "$pid" 2>/dev/null
+	fi
+}
+
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+
+fail() {
+	printf '%s\n' "$1" >"$runtime/last_error"
+	exit 1
+}
+
+install_routes() {
+	ip -4 route add local 0.0.0.0/0 dev lo table "$route_table" || return 1
+	route4=1
+	ip -6 route add local ::/0 dev lo table "$route_table" || return 1
+	route6=1
+	ip -4 rule add priority "$route_priority" fwmark "$route_mark" lookup "$route_table" || return 1
+	rule4=1
+	ip -6 rule add priority "$route_priority" fwmark "$route_mark" lookup "$route_table" || return 1
+	rule6=1
+	nft -f "$runtime/lan.nft" || return 1
+	nft_installed=1
+}
+
+rm -f "$runtime/ready"
+XRAY_LOCATION_ASSET=/etc/exconnect/geo /usr/bin/xray run -config "$runtime/config.json" 8>&- &
+pid=$!
+listeners=2
+[ ! -s "$runtime/lan.nft" ] || listeners=4
+attempt=0
+while [ "$attempt" -lt 10 ]; do
+	kill -0 "$pid" 2>/dev/null || fail "Xray exited during startup. Check the system log."
+	bound="$(ss -H -ltnp | grep -Fc "pid=$pid,")"
+	[ "$bound" -lt "$listeners" ] || break
+	sleep 1
+	attempt=$((attempt + 1))
+done
+[ "$attempt" -lt 10 ] || fail "Xray could not open its listening ports. Check the system log."
+
+if [ -s "$runtime/lan.nft" ]; then
+	install_routes || fail "Could not start transparent routing. Check the system log."
+fi
+
+printf '%s\n' "$pid" >"$runtime/ready"
+wait "$pid"
+result=$?
+pid=
+printf '%s\n' "Xray exited. Check the system log." >"$runtime/last_error"
+exit "$result"

@@ -1,0 +1,275 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: ExConnect 0.1.0\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Action"
+msgstr "Действие"
+
+msgid "Add connection share links here and select the active profile in Settings."
+msgstr "Добавьте ссылки для подключения и выберите активный профиль в настройках."
+
+msgid "Apply configuration"
+msgstr "Применить конфигурацию"
+
+msgid "Block"
+msgstr "Блокировать"
+
+msgid "Configure HTTPS sources for Xray-compatible .dat files, including RunetFreedom lists."
+msgstr "Укажите HTTPS-источники файлов .dat, совместимых с Xray, включая списки RunetFreedom."
+
+msgid "Connection profile"
+msgstr "Профиль подключения"
+
+msgid "Connection profiles"
+msgstr "Профили подключения"
+
+msgid "Core version"
+msgstr "Версия ядра"
+
+msgid "Debug"
+msgstr "Отладка"
+
+msgid "Direct"
+msgstr "Напрямую"
+
+msgid "Domains"
+msgstr "Домены"
+
+msgid "Download rule data"
+msgstr "Скачать данные для правил"
+
+msgid "Enable service on startup"
+msgstr "Включать службу при загрузке"
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enabled on startup"
+msgstr "Автозапуск службы"
+
+msgid "Enter Linux device names such as br-lan. Transparent mode applies to traffic entering these devices."
+msgstr "Укажите имена устройств Linux, например br-lan. Прозрачный прокси обрабатывает трафик, входящий через эти устройства."
+
+msgid "Enter a .dat filename using letters, numbers, dots, hyphens or underscores."
+msgstr "Введите имя файла .dat из латинских букв, цифр, точек, дефисов или знаков подчёркивания."
+
+msgid "Enter a complete share link using a supported protocol."
+msgstr "Введите полную ссылку для подключения по поддерживаемому протоколу."
+
+msgid "Enter a valid HTTPS URL without credentials."
+msgstr "Введите действительный HTTPS-адрес без имени пользователя и пароля."
+
+msgid "Enter a valid Linux device name."
+msgstr "Введите действительное имя устройства Linux."
+
+msgid "Errors"
+msgstr "Ошибки"
+
+msgid "ExConnect"
+msgstr "ExConnect"
+
+msgid "ExConnect service status is unavailable."
+msgstr "Не удалось получить состояние службы ExConnect."
+
+msgid "Filename"
+msgstr "Имя файла"
+
+msgid "HTTP proxy port"
+msgstr "Порт HTTP-прокси"
+
+msgid "HTTPS URL"
+msgstr "HTTPS-адрес"
+
+msgid "IP addresses"
+msgstr "IP-адреса"
+
+msgid "Informational"
+msgstr "Информация"
+
+msgid "LAN ingress devices"
+msgstr "Входные устройства локальной сети"
+
+msgid "Last error"
+msgstr "Последняя ошибка"
+
+msgid "Local SOCKS and HTTP proxies"
+msgstr "Локальные прокси SOCKS и HTTP"
+
+msgid "Log level"
+msgstr "Уровень журнала"
+
+msgid "Manage ExConnect"
+msgstr "Управление ExConnect"
+
+msgid "No"
+msgstr "Нет"
+
+msgid "None"
+msgstr "Не выбран"
+
+msgid "Off"
+msgstr "Выключено"
+
+msgid "Overview"
+msgstr "Обзор"
+
+msgid "Profile name"
+msgstr "Название профиля"
+
+msgid "Profiles"
+msgstr "Профили"
+
+msgid "Proxy"
+msgstr "Через прокси"
+
+msgid "Proxy mode"
+msgstr "Режим прокси"
+
+msgid "Routing"
+msgstr "Маршрутизация"
+
+msgid "Rule data"
+msgstr "Данные для правил"
+
+msgid "Rule data sources"
+msgstr "Источники данных для правил"
+
+msgid "Rule data was updated. Apply the configuration from Overview to load it."
+msgstr "Данные для правил обновлены. Примените конфигурацию на вкладке «Обзор», чтобы загрузить их."
+
+msgid "Rule name"
+msgstr "Название правила"
+
+msgid "Rules are evaluated from top to bottom. The first match wins. Set the action for unmatched traffic in Settings."
+msgstr "Правила проверяются сверху вниз. Срабатывает первое совпадение. Действие для остального трафика задаётся в настройках."
+
+msgid "Running"
+msgstr "Запущена"
+
+msgid "SOCKS port"
+msgstr "Порт SOCKS"
+
+msgid "Save and apply changes in each tab before running these actions. Stop service is temporary. To disable startup, use Settings."
+msgstr "Перед выполнением этих действий сохраните и примените изменения на каждой вкладке. Остановка службы временная. Автозапуск можно отключить в настройках."
+
+msgid "Save and apply the sources before downloading. Then reference a file and its tag in Routing, for example ext:geosite-runetfreedom.dat:ru-blocked."
+msgstr "Перед загрузкой сохраните и примените изменения в списке источников. Затем укажите файл и его тег в правилах маршрутизации, например ext:geosite-runetfreedom.dat:ru-blocked."
+
+msgid "Service settings"
+msgstr "Настройки службы"
+
+msgid "Service state"
+msgstr "Состояние службы"
+
+msgid "Service status"
+msgstr "Статус службы"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Share link"
+msgstr "Ссылка для подключения"
+
+msgid "Stop service"
+msgstr "Остановить службу"
+
+msgid "Stopped"
+msgstr "Остановлена"
+
+msgid "The operation failed."
+msgstr "Не удалось выполнить операцию."
+
+msgid "The saved configuration passed validation."
+msgstr "Сохранённая конфигурация прошла проверку."
+
+msgid "The saved configuration was applied."
+msgstr "Сохранённая конфигурация применена."
+
+msgid "The service was stopped."
+msgstr "Служба остановлена."
+
+msgid "Traffic rules"
+msgstr "Правила обработки трафика"
+
+msgid "Transparent proxy for selected LAN devices"
+msgstr "Прозрачный прокси для выбранных устройств локальной сети"
+
+msgid "Transparent proxy port"
+msgstr "Порт прозрачного прокси"
+
+msgid "Unmatched traffic"
+msgstr "Трафик без совпадений"
+
+msgid "Use Xray IP syntax such as 203.0.113.0/24, geoip:ru or ext:geoip-custom.dat:ru. A domain or IP match can trigger the rule."
+msgstr "Используйте синтаксис Xray для IP-адресов, например 203.0.113.0/24, geoip:ru или ext:geoip-custom.dat:ru. Для срабатывания правила достаточно совпадения домена или IP-адреса."
+
+msgid "Use Xray domain syntax such as domain:example.org, geosite:ru or ext:geosite-custom.dat:ru."
+msgstr "Используйте синтаксис Xray для доменов, например domain:example.org, geosite:ru или ext:geosite-custom.dat:ru."
+
+msgid "Validate configuration"
+msgstr "Проверить конфигурацию"
+
+msgid "Warnings"
+msgstr "Предупреждения"
+
+msgid "Yes"
+msgstr "Да"
+
+msgid "Add an HTTPS subscription, save and apply the changes, then refresh it. Imported nodes appear in Profiles and Settings."
+msgstr "Добавьте HTTPS-подписку, сохраните и примените изменения, затем обновите подписку. Импортированные узлы появятся в профилях и настройках."
+
+msgid "Available"
+msgstr "Доступен"
+
+msgid "ExConnect uses the language selected in LuCI."
+msgstr "ExConnect использует язык, выбранный в LuCI."
+
+msgid "Number of subscription profiles: %s"
+msgstr "Количество профилей подписки: %s"
+
+msgid "Open LuCI language settings"
+msgstr "Открыть языковые настройки LuCI"
+
+msgid "Refresh"
+msgstr "Обновить"
+
+msgid "Refresh subscription"
+msgstr "Обновить подписку"
+
+msgid "Removed by provider"
+msgstr "Удалён провайдером"
+
+msgid "Status"
+msgstr "Состояние"
+
+msgid "Subscription"
+msgstr "Подписка"
+
+msgid "Subscription name"
+msgstr "Название подписки"
+
+msgid "Subscription profiles"
+msgstr "Профили из подписок"
+
+msgid "Subscription sources"
+msgstr "Источники подписок"
+
+msgid "Subscriptions"
+msgstr "Подписки"
+
+msgid "Supported schemes include Hysteria2, VLESS, VMess, Trojan, Shadowsocks, SOCKS and HTTP. Hysteria2 requires a trusted certificate or a supported certificate pin."
+msgstr "Поддерживаются ссылки Hysteria2, VLESS, VMess, Trojan, Shadowsocks, SOCKS и HTTP. Для Hysteria2 нужен доверенный сертификат или поддерживаемый отпечаток сертификата."
+
+msgid "RunetFreedom domains"
+msgstr "Домены RunetFreedom"
+
+msgid "RunetFreedom IP addresses"
+msgstr "IP-адреса RunetFreedom"
+
+msgid "Deleting a subscription removes its imported profiles. If one of them is selected, it becomes a manual profile."
+msgstr "При удалении подписки удаляются её импортированные профили. Если один из них выбран для подключения, он сохраняется как ручной профиль."

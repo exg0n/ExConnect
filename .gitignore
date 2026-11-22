@@ -1,0 +1,4 @@
+/dist/
+/.openwrt-sdk/
+__pycache__/
+*.pyc

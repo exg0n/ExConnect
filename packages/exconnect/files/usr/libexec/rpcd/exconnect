@@ -1,0 +1,54 @@
+#!/bin/sh
+
+. /usr/share/libubox/jshn.sh
+
+runtime=/var/run/exconnect
+control=/usr/libexec/exconnect/control
+
+action_reply() {
+	local action="$1" value error
+	json_init
+	value="$("$control" "$action" 2>/dev/null)"
+	if [ "$?" -eq 0 ]; then
+		json_add_boolean ok 1
+		[ "$action" != update_assets ] || json_add_int updated "$value"
+	else
+		json_add_boolean ok 0
+		error="$(cat "$runtime/last_error" 2>/dev/null)"
+		json_add_string error "${error:-ExConnect operation failed. Check the system log.}"
+	fi
+	json_dump
+}
+
+status_reply() {
+	local enabled=0 running=0 version profile error pid
+	[ "$(uci -q -C '' -P "$runtime" get exconnect.main.enabled)" != 1 ] || enabled=1
+	if read -r pid 2>/dev/null <"$runtime/ready" && kill -0 "$pid" 2>/dev/null; then
+		running=1
+	fi
+	version="$(/usr/bin/xray version 2>/dev/null | head -n 1)"
+	profile="$(uci -q -C '' -P "$runtime" get exconnect.main.profile)"
+	error="$(cat "$runtime/last_error" 2>/dev/null)"
+	json_init
+	json_add_boolean enabled "$enabled"
+	json_add_boolean running "$running"
+	[ -z "$version" ] || json_add_string version "$version"
+	[ -z "$profile" ] || json_add_string profile "$profile"
+	[ -z "$error" ] || json_add_string last_error "$error"
+	json_dump
+}
+
+case "$1:$2" in
+	list:)
+		printf '%s\n' '{"status":{},"apply":{},"stop":{},"validate":{},"update_assets":{}}'
+		;;
+	call:status)
+		status_reply
+		;;
+	call:apply|call:stop|call:validate|call:update_assets)
+		action_reply "$2"
+		;;
+	*)
+		exit 2
+		;;
+esac
