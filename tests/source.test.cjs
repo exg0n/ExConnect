@@ -144,6 +144,6 @@ test('Russian catalog translates LuCI menu labels and literal UI strings', () =>
 
 test('OpenWrt shell entry points parse', { skip: process.platform === 'win32' }, () => {
     const scripts = filesUnder(path.join(backend, 'files')).filter(file => /^#!\/bin\/sh\b/.test(read(file)));
-    scripts.push(path.join(__dirname, 'runtime.sh'));
+    scripts.push(path.join(__dirname, 'runtime.sh'), path.join(__dirname, '../scripts/install-openwrt.sh'));
     for (const filename of scripts) run('sh', ['-n', filename]);
 });

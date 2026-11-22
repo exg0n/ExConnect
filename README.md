@@ -11,7 +11,30 @@
 - Пользовательские `geoip.dat` и `geosite.dat` по HTTPS с готовыми адресами RunetFreedom. Для произвольного имени файла используется синтаксис Xray `ext:<имя.dat>:<тег>`.
 - Управление профилями, подписками, правилами и службой в LuCI. Русский и английский интерфейс используют выбранный язык LuCI.
 
-## Сборка
+## Установка на роутер
+
+Понадобятся OpenWrt **25.12.5**, доступ по SSH под `root`, свободное место для Xray и доступ с роутера к GitHub и репозиториям OpenWrt. Проверьте версию и свободное место на роутере:
+
+```sh
+ubus call system board
+df -h /overlay /tmp
+```
+
+### Автоматическое скачивание и установка
+
+Откройте [GitHub Actions](https://github.com/exg0n/ExConnect/actions/workflows/openwrt.yml) и убедитесь, что у успешной сборки ветки `main`, запущенной после отправки коммита, есть архив `exconnect-openwrt-25.12.5-x86-64` в разделе **Artifacts**. GitHub хранит такие архивы ограниченное время. Автоматическая сборка использует SDK `x86/64`. Для другой цели можно собрать пакеты вручную по инструкции ниже.
+
+Репозиторий приватный. Создайте [fine-grained токен GitHub](https://github.com/settings/personal-access-tokens/new) с доступом только к `ExConnect` и правами **Contents → Read-only** и **Actions → Read-only**. Команда запросит токен и скроет его при вводе.
+
+Подключитесь по SSH к роутеру, например `ssh root@192.168.1.1`. Выполните в оболочке роутера одну строку:
+
+```sh
+(set -eu; grep -qx "DISTRIB_RELEASE='25.12.5'" /etc/openwrt_release; apk update; apk add ca-bundle curl jsonfilter unzip; printf 'GitHub token: '; IFS= read -rs token; printf '\n'; test -n "$token"; installer=$(mktemp /tmp/exconnect-installer.XXXXXX); trap 'rm -f "$installer"' EXIT; printf 'Authorization: Bearer %s\n' "$token" | curl -q -fsS --proto '=https' -H @- -H 'Accept: application/vnd.github.raw+json' -o "$installer" 'https://api.github.com/repos/exg0n/ExConnect/contents/scripts/install-openwrt.sh?ref=main'; printf '%s\n' "$token" | sh "$installer")
+```
+
+Команда скачает установщик из `main`, возьмёт два `.apk` из последней успешной сборки этой ветки и установит их. `apk` скачает Xray и остальные зависимости из настроенных репозиториев OpenWrt. По окончании откройте **Службы → ExConnect** в LuCI.
+
+### Ручная сборка и установка
 
 На Linux распакуйте официальный [SDK OpenWrt 25.12.5](https://downloads.openwrt.org/releases/25.12.5/targets/) для цели роутера. Сверьте SHA-256 архива с опубликованной контрольной суммой.
 
@@ -19,17 +42,13 @@
 bash scripts/build-openwrt.sh /path/to/openwrt-sdk
 ```
 
-Скрипт соберёт `exconnect` и `luci-app-exconnect` в `dist/`. В GitHub Actions настроена сборка на официальном SDK `x86/64` и проверка конфигурации Xray в пользовательской среде OpenWrt. На роутере должны быть доступны официальные репозитории пакетов для установленной версии и архитектуры.
-
-## Установка одной командой
-
-Скопируйте два собранных пакета `exconnect` и `luci-app-exconnect` из `dist/` в `/tmp/exconnect` на роутере с OpenWrt 25.12.5. Подключитесь к роутеру по SSH под `root` и выполните в оболочке:
+Скрипт сохранит `exconnect` и `luci-app-exconnect` в `dist/`. Готовые пакеты можно также скачать из **Artifacts** на странице успешной сборки GitHub Actions и распаковать на компьютере. Скопируйте оба `.apk` в `/tmp/exconnect/` на роутере. Выполните по SSH под `root`:
 
 ```sh
 cd /tmp/exconnect && apk update && apk add --allow-untrusted ./exconnect-[0-9]*.apk ./luci-app-exconnect-[0-9]*.apk
 ```
 
-`apk` установит оба пакета и скачает их зависимости, включая Xray, из настроенных репозиториев OpenWrt. Флаг `--allow-untrusted` нужен для установки локальных пакетов без подписи.
+Флаг `--allow-untrusted` нужен для установки локальных пакетов без подписи. Если LuCI уже открыт, обновите страницу после установки.
 
 ## Первое подключение
 
@@ -40,6 +59,14 @@ cd /tmp/exconnect && apk update && apk add --allow-untrusted ./exconnect-[0-9]*.
 5. Для списков `.dat` добавьте HTTPS-источник в **Файлах правил**, сохраните его и загрузите. Добавьте соответствующие доменные или IP-условия в правила маршрутизации и снова примените конфигурацию службы.
 
 Для Hysteria2 подходит TLS-сертификат от доверенного центра. Для собственного сертификата укажите `pinSHA256` в ссылке. См. [документацию Hysteria в Xray](https://xtls.github.io/en/config/outbounds/hysteria.html) и [документацию маршрутизации Xray](https://xtls.github.io/en/config/routing.html).
+
+Для диагностики проверьте пакеты и журнал роутера:
+
+```sh
+apk info -e exconnect luci-app-exconnect xray-core
+/etc/init.d/exconnect status
+logread -e exconnect
+```
 
 ## Проверки и статус
 
