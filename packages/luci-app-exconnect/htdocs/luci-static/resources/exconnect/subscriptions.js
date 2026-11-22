@@ -1,12 +1,10 @@
 'use strict';
 'require form';
-'require view';
+'require baseclass';
 'require exconnect.client as client';
 
-return view.extend({
-	render: function () {
-		const map = new form.Map('exconnect', _('Subscriptions'),
-			_('Add an HTTPS subscription, save and apply the changes, then refresh it. Imported nodes appear in Profiles and Settings.'));
+return baseclass.extend({
+	addTo: function (map) {
 		const subscriptions = map.section(form.GridSection, 'subscription', _('Subscription sources'),
 			_('Deleting a subscription removes its imported profiles. If one of them is selected, it becomes a manual profile.'));
 		subscriptions.anonymous = true;
@@ -51,7 +49,5 @@ return view.extend({
 				return _('Number of subscription profiles: %s').format(Number(result.count) || 0);
 			});
 		};
-
-		return map.render();
 	}
 });

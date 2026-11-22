@@ -31,10 +31,16 @@ validate_config() {
 		return 1
 	fi
 	mkdir -p "$geo" || { fail "Could not create DAT directory"; return 1; }
-	if ! XRAY_LOCATION_ASSET="$geo" /usr/bin/xray run -test -config "$json" >&2; then
-		fail "Xray rejected the configuration. Check the settings and DAT tags."
-		return 1
+	if detail="$(XRAY_LOCATION_ASSET="$geo" /usr/bin/xray run -test -config "$json" 2>&1)"; then
+		printf '%s\n' "$detail" >&2
+		return 0
 	fi
+	printf '%s\n' "$detail" >&2
+	# Log routing failures without copying profile parser output into syslog.
+	detail="$(printf '%s\n' "$detail" | grep -m 1 -F 'failed to build routing configuration' |
+		sed -E 's#([[:alnum:]+.-]+://)[^[:space:]]+#\1[redacted]#g')"
+	[ -z "$detail" ] || logger -t exconnect "Configuration check failed: $detail"
+	fail "Xray rejected the configuration. Check the settings and DAT tags."
 }
 
 prepare() {

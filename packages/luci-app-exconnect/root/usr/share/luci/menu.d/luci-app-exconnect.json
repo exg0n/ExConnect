@@ -11,14 +11,9 @@
 		"action": { "type": "view", "path": "exconnect/overview" }
 	},
 	"admin/services/exconnect/profiles": {
-		"title": "Profiles",
+		"title": "Profiles and subscriptions",
 		"order": 20,
 		"action": { "type": "view", "path": "exconnect/profiles" }
-	},
-	"admin/services/exconnect/subscriptions": {
-		"title": "Subscriptions",
-		"order": 25,
-		"action": { "type": "view", "path": "exconnect/subscriptions" }
 	},
 	"admin/services/exconnect/routing": {
 		"title": "Routing",
@@ -34,5 +29,10 @@
 		"title": "Settings",
 		"order": 50,
 		"action": { "type": "view", "path": "exconnect/settings" }
+	},
+	"admin/services/exconnect/diagnostics": {
+		"title": "Diagnostics",
+		"order": 60,
+		"action": { "type": "view", "path": "exconnect/diagnostics" }
 	}
 }

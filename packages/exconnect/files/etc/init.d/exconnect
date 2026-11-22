@@ -11,7 +11,7 @@ start_service() {
 	fi
 
 	procd_open_instance core
-	procd_set_param command /usr/libexec/exconnect/run
+	procd_set_param command /usr/libexec/exconnect/exconnect-core
 	procd_set_param respawn 3600 5 5
 	procd_set_param term_timeout 5
 	procd_set_param stdout 1

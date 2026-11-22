@@ -31,6 +31,10 @@ expect_profile() {
 	XRAY_LOCATION_ASSET="$fixture" xray run -test -config "$fixture/config.json"
 }
 
+fixture_uci() {
+	uci -c "$fixture" -P "$fixture/delta" "$@"
+}
+
 set_fixture() {
 	cat > "$fixture/exconnect" <<EOF
 config service 'main'
@@ -96,6 +100,87 @@ expect_profile 'trojan://qa@example.test:443' trojan
 expect_profile 'ss://aes-128-gcm:qa@example.test:443' shadowsocks
 expect_profile 'socks5://qa:pass@example.test:1080' socks
 expect_profile 'https://qa:pass@example.test:443' http
+
+set_fixture 'socks5://qa:pass@example.test:1080'
+cp "$fixture/qa-geosite.dat" "$fixture/geosite-runetfreedom.dat"
+cp "$fixture/qa-geoip.dat" "$fixture/geoip-runetfreedom.dat"
+fixture_uci set exconnect.site_data=asset
+fixture_uci set exconnect.site_data.name=geosite-runetfreedom.dat
+fixture_uci set exconnect.ip_data=asset
+fixture_uci set exconnect.ip_data.name=geoip-runetfreedom.dat
+fixture_uci set exconnect.main.routing_mode=text
+fixture_uci set 'exconnect.main.routing_text=# comment
+default: direct # fallback
+protocol(bittorrent)->direct
+domain(geosite:fixture, domain:text.example, plain.example, contains:legacy) -> proxy
+geoip(fixture)->proxy
+ip(192.0.2.0/24)->block'
+fixture_uci commit exconnect
+ucode "$generator" generate "$fixture" > "$fixture/config.json"
+expect_value '@.routing.rules[0].protocol[0]' 'bittorrent'
+expect_value '@.routing.rules[0].outboundTag' 'direct'
+expect_value '@.routing.rules[1].domain[0]' 'ext:geosite-runetfreedom.dat:fixture'
+expect_value '@.routing.rules[1].domain[1]' 'domain:text.example'
+expect_value '@.routing.rules[1].domain[2]' 'plain.example'
+expect_value '@.routing.rules[1].domain[3]' 'keyword:legacy'
+expect_value '@.routing.rules[1].outboundTag' 'proxy'
+expect_value '@.routing.rules[2].ip[0]' 'ext:geoip-runetfreedom.dat:fixture'
+expect_value '@.routing.rules[3].ip[0]' '192.0.2.0/24'
+expect_value '@.routing.rules[3].outboundTag' 'block'
+expect_value '@.routing.rules[4].outboundTag' 'direct'
+XRAY_LOCATION_ASSET="$fixture" xray run -test -config "$fixture/config.json"
+
+fixture_uci set 'exconnect.main.routing_text=domain(domain:text.example)->direct'
+fixture_uci commit exconnect
+ucode "$generator" generate "$fixture" > "$fixture/config.json"
+expect_value '@.routing.rules[1].outboundTag' 'proxy'
+
+fixture_uci set 'exconnect.main.routing_text=default: direct
+default: proxy'
+fixture_uci commit exconnect
+expect_invalid 'RoutingA line 2.*duplicate default'
+fixture_uci set 'exconnect.main.routing_text=# comment
+protocol(other)->direct'
+fixture_uci commit exconnect
+expect_invalid 'RoutingA line 2.*unsupported protocol'
+
+# A diagnostic config ignores the saved routing rules and binds only to loopback.
+ucode "$generator" probe upstream 17091 "$fixture" > "$fixture/config.json"
+expect_value '@.inbounds[0].listen' '127.0.0.1'
+expect_value '@.inbounds[0].protocol' 'socks'
+expect_value '@.inbounds[0].port' '17091'
+expect_value '@.outbounds[0].protocol' 'socks'
+expect_value '@.outbounds[0].tag' 'proxy'
+! grep -q 'routing\|dokodemo-door\|freedom' "$fixture/config.json"
+xray run -test -config "$fixture/config.json"
+if ucode "$generator" probe missing 17091 "$fixture" > "$fixture/config.json" 2> "$fixture/error"; then
+	printf '%s\n' 'Diagnostic config accepted a missing profile' >&2
+	exit 1
+fi
+grep -qi 'saved connection profile' "$fixture/error"
+
+# Switching back to table mode preserves legacy rules, even with unsound saved RoutingA text.
+fixture_uci set exconnect.main.routing_mode=table
+fixture_uci commit exconnect
+ucode "$generator" generate "$fixture" > "$fixture/config.json"
+expect_value '@.routing.rules[0].domain[0]' 'ext:qa-geosite.dat:fixture'
+expect_value '@.routing.rules[1].ip[0]' 'ext:qa-geoip.dat:fixture'
+
+set_fixture 'socks5://qa:pass@example.test:1080'
+fixture_uci delete exconnect.main.profile
+fixture_uci set exconnect.main.routing_mode=text
+fixture_uci set 'exconnect.main.routing_text=default: direct
+domain(geosite:fixture)->block
+geoip(fixture)->direct'
+fixture_uci commit exconnect
+ucode "$generator" generate "$fixture" > "$fixture/config.json"
+expect_value '@.routing.rules[0].domain[0]' 'geosite:fixture'
+expect_value '@.routing.rules[1].ip[0]' 'geoip:fixture'
+expect_value '@.routing.rules[2].outboundTag' 'direct'
+fixture_uci set 'exconnect.main.routing_text=default: direct
+domain(domain:text.example)->proxy'
+fixture_uci commit exconnect
+expect_invalid 'Select a profile for proxy routing'
 
 set_fixture 'hysteria2://qa@example.test:8443/?insecure=1'
 expect_invalid 'insecure|pin'

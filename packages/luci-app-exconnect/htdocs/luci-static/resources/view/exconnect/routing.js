@@ -6,6 +6,22 @@ return view.extend({
 	render: function () {
 		const map = new form.Map('exconnect', _('Routing'),
 			_('Rules are evaluated from top to bottom. The first match wins. Set the action for unmatched traffic in Settings.'));
+		const main = map.section(form.NamedSection, 'main', 'service', _('Routing format'));
+		const mode = main.option(form.ListValue, 'routing_mode', _('Rule editor'),
+			_('Only the selected editor supplies active rules. Switching editors keeps existing rules.'));
+		mode.value('table', _('Rule table'));
+		mode.value('text', 'RoutingA');
+		mode.default = 'table';
+		mode.rmempty = false;
+
+		const text = main.option(form.TextValue, 'routing_text', _('RoutingA rules'),
+			_('Use default: direct and domain(...), geoip(...), ip(...) or protocol(...), followed by ->direct, ->proxy or ->block. Lines starting with # are comments.'));
+		text.rows = 18;
+		text.monospace = true;
+		text.placeholder = 'default: direct\nprotocol(bittorrent)->direct\ndomain(domain:example.org)->proxy\ngeoip(telegram)->proxy';
+		text.depends('routing_mode', 'text');
+		text.retain = true;
+
 		const rules = map.section(form.GridSection, 'rule', _('Traffic rules'));
 		rules.anonymous = true;
 		rules.addremove = true;

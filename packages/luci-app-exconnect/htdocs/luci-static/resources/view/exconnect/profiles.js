@@ -2,6 +2,7 @@
 'require form';
 'require uci';
 'require view';
+'require exconnect.subscriptions as subscriptionEditor';
 
 function source(profile) {
 	return profile && profile.subscription && uci.get('exconnect', profile.subscription);
@@ -13,7 +14,7 @@ return view.extend({
 	},
 
 	render: function () {
-		const map = new form.Map('exconnect', _('Profiles'),
+		const map = new form.Map('exconnect', _('Profiles and subscriptions'),
 			_('Add connection share links here and select the active profile in Settings.'));
 		const profiles = map.section(form.GridSection, 'profile', _('Connection profiles'));
 		profiles.anonymous = true;
@@ -34,6 +35,7 @@ return view.extend({
 			return /^(hysteria2|hy2|vless|vmess|trojan|ss|socks|socks5|http|https):\/\/\S+$/i.test(value) ||
 				_('Enter a complete share link using a supported protocol.');
 		};
+		subscriptionEditor.addTo(map);
 
 		return map.render().then(function (node) {
 			const rows = [];

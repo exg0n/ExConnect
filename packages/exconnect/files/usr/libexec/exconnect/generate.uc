@@ -223,6 +223,51 @@ function validateMatchers(values) {
 	return values;
 }
 
+function routingText(uci, main, rules, defaultAction) {
+	let assets = {};
+	uci.foreach(packageName, 'asset', (asset) => { assets[asset.name] = true; });
+	let declaredDefault = false;
+	let lines = split(main.routing_text || '', '\n');
+	for (let number = 0; number < length(lines); number++) {
+		let line = trim(lines[number]);
+		if (!line || match(line, /^#/))
+			continue;
+		let prefix = sprintf('RoutingA line %d: ', number + 1);
+		let fallback = match(line, /^default[[:space:]]*:[[:space:]]*(direct|proxy|block)[[:space:]]*(#.*)?$/);
+		if (fallback) {
+			assert(!declaredDefault, prefix + 'duplicate default');
+			declaredDefault = true;
+			defaultAction = fallback[1];
+			continue;
+		}
+		let rule = match(line, /^(domain|geoip|ip|protocol)[[:space:]]*\((.+)\)[[:space:]]*->[[:space:]]*(direct|proxy|block)[[:space:]]*(#.*)?$/);
+		assert(rule, prefix + 'expected domain, geoip, ip or protocol rule');
+		let selector = rule[1];
+		let values = map(split(rule[2], ','), (entry) => trim(entry));
+		let key = selector == 'geoip' ? 'ip' : selector;
+		for (let n = 0; n < length(values); n++) {
+			let value = values[n];
+			assert(value, prefix + 'empty selector');
+			if (selector == 'protocol')
+				assert(index([ 'http', 'tls', 'quic', 'bittorrent' ], value) >= 0, prefix + 'unsupported protocol');
+			if (selector == 'geoip' && index(value, ':') < 0)
+				value = 'geoip:' + value;
+			if (selector == 'domain' && substr(value, 0, 9) == 'contains:')
+				value = 'keyword:' + trim(substr(value, 9));
+			let category = match(value, /^(geosite|geoip):(.+)$/);
+			assert(!category || category[1] != 'geoip' || substr(category[2], 0, 1) != '!',
+				prefix + 'inverted GeoIP selectors are not supported');
+			if (category && assets[category[1] + '-runetfreedom.dat'])
+				value = 'ext:' + category[1] + '-runetfreedom.dat:' + category[2];
+			values[n] = value;
+		}
+		let compiled = { type: 'field', outboundTag: rule[3] };
+		compiled[key] = validateMatchers(values);
+		push(rules, compiled);
+	}
+	return defaultAction;
+}
+
 function generate(uci, main) {
 	let defaultAction = main.default_action || 'proxy';
 	assert(index(actions, defaultAction) >= 0, 'Invalid default routing action');
@@ -250,8 +295,9 @@ function generate(uci, main) {
 	}
 
 	let rules = [];
-	let requiresProfile = defaultAction == 'proxy';
-	uci.foreach(packageName, 'rule', (rule) => {
+	if (main.routing_mode == 'text')
+		defaultAction = routingText(uci, main, rules, defaultAction);
+	else uci.foreach(packageName, 'rule', (rule) => {
 		if (rule.enabled != null && !enabled(rule.enabled))
 			return;
 		assert(index(actions, rule.action) >= 0, 'Invalid routing action');
@@ -262,7 +308,6 @@ function generate(uci, main) {
 			push(rules, { type: 'field', domain: domains, outboundTag: rule.action });
 		if (length(ips))
 			push(rules, { type: 'field', ip: ips, outboundTag: rule.action });
-		requiresProfile = requiresProfile || rule.action == 'proxy';
 	});
 	push(rules, { type: 'field', network: 'tcp,udp', outboundTag: defaultAction });
 
@@ -275,13 +320,24 @@ function generate(uci, main) {
 		assert(selected && selected['.type'] == 'profile', 'Selected profile does not exist');
 		push(outbounds, outbound(selected.uri));
 	} else {
-		assert(!requiresProfile, 'Select a profile for proxy routing');
+		for (let rule in rules)
+			assert(rule.outboundTag != 'proxy', 'Select a profile for proxy routing');
 	}
 
 	let loglevel = main.log_level || 'warning';
 	assert(index([ 'none', 'error', 'warning', 'info', 'debug' ], loglevel) >= 0, 'Invalid log level');
 	printf('%J\n', { log: { loglevel }, inbounds, outbounds,
 		routing: { domainStrategy: 'IPOnDemand', rules } });
+}
+
+function probeConfig(uci, id, localPort) {
+	let selected = id && uci.get_all(packageName, id);
+	assert(selected && selected['.type'] == 'profile', 'Select a saved connection profile');
+	printf('%J\n', {
+		log: { loglevel: 'warning' },
+		inbounds: [ { protocol: 'socks', listen: '127.0.0.1', port: port(localPort) } ],
+		outbounds: [ outbound(selected.uri) ]
+	});
 }
 
 function nftables(main) {
@@ -340,12 +396,16 @@ try {
 		checkLinks();
 		exit(0);
 	}
-	let uci = ARGV[1] ? cursor(ARGV[1], ARGV[1] + '/delta', '') : cursor('/etc/config', '/var/run/exconnect', '');
+	let configDir = command == 'probe' ? ARGV[3] : ARGV[1];
+	let uci = configDir ? cursor(configDir, configDir + '/delta', '') : cursor('/etc/config', '/var/run/exconnect', '');
 	let main = uci.get_all(packageName, 'main');
 	assert(main && main['.type'] == 'service', 'Missing ExConnect service settings');
 	switch (command) {
 	case 'generate':
 		generate(uci, main);
+		break;
+	case 'probe':
+		probeConfig(uci, ARGV[1], ARGV[2]);
 		break;
 	case 'nftables':
 		nftables(main);

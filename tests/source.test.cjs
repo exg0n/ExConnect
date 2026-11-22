@@ -65,7 +65,7 @@ test('OpenWrt packages reference the service and preserve its UCI configuration'
     assert.match(app, /\bpo2lmo\b.*\bexconnect\.ru\.lmo\b/);
     assert.ok(fs.existsSync(path.join(backend, 'files/etc/init.d/exconnect')));
     assert.ok(fs.existsSync(path.join(backend, 'files/usr/libexec/rpcd/exconnect')));
-    for (const entry of ['usr/libexec/exconnect/subscriptions.uc', 'usr/libexec/rpcd/exconnect-subscriptions']) {
+    for (const entry of ['usr/libexec/exconnect/subscriptions.uc', 'usr/libexec/rpcd/exconnect-subscriptions', 'usr/libexec/exconnect/probe']) {
         assert.ok(service.includes(`./files/${entry}`));
         assert.ok(fs.existsSync(path.join(backend, 'files', entry)));
     }
@@ -79,11 +79,16 @@ test('LuCI menu resolves each view and requires the app ACL', () => {
     const menu = readMenu();
     const parent = 'admin/services/exconnect';
     assert.ok(menu[parent].depends.acl.includes('luci-app-exconnect'));
-    for (const page of ['overview', 'profiles', 'subscriptions', 'routing', 'assets', 'settings']) {
+    for (const page of ['overview', 'profiles', 'routing', 'assets', 'settings', 'diagnostics']) {
         const entry = menu[`${parent}/${page}`];
         assert.equal(entry.action.type, 'view', page);
         assert.ok(fs.existsSync(path.join(views, `${entry.action.path}.js`)), page);
     }
+    assert.equal(menu[`${parent}/profiles`].title, 'Profiles and subscriptions');
+    assert.equal(menu[`${parent}/subscriptions`], undefined);
+    const profiles = read(views, 'exconnect/profiles.js');
+    assert.match(profiles, /subscriptionEditor\.addTo\(map\)/);
+    assert.ok(fs.existsSync(path.resolve(views, '../exconnect/subscriptions.js')));
 });
 
 test('LuCI distinguishes read-only status and write operations', () => {
@@ -92,8 +97,8 @@ test('LuCI distinguishes read-only status and write operations', () => {
     const { read: readonly, write } = acl;
     assert.ok(readonly.uci.includes('exconnect'));
     assert.ok(write.uci.includes('exconnect'));
-    assert.deepEqual(readonly.ubus.exconnect, ['status']);
-    for (const method of ['apply', 'stop', 'update_assets', 'validate']) {
+    assert.deepEqual(new Set(readonly.ubus.exconnect), new Set(['status', 'logs']));
+    for (const method of ['apply', 'stop', 'update_assets', 'validate', 'probe']) {
         assert.ok(write.ubus.exconnect.includes(method), method);
     }
     assert.ok(!write.ubus.exconnect.includes('*'));
@@ -111,14 +116,22 @@ test('LuCI modules compile in the browser-style wrapper', () => {
 
 test('LuCI handles both successful and unsuccessful service actions', async () => {
     const notifications = [];
+    const declarations = [];
     const source = read(luci, 'htdocs/luci-static/resources/exconnect/client.js');
     const client = vm.runInNewContext(`(function () { ${source}\n })()`, {
         baseclass: { extend: object => object },
-        rpc: { declare: () => undefined },
+        rpc: { declare: definition => { declarations.push(definition); } },
         ui: { addNotification: (title, body, severity) => notifications.push({ title, body, severity }) },
         E: (_tag, children) => children.join(''),
         _: input => input,
     });
+
+    const logs = declarations.find(definition => definition.method === 'logs');
+    assert.equal(logs?.object, 'exconnect');
+    assert.equal(logs?.params?.length || 0, 0);
+    const probe = declarations.find(definition => definition.method === 'probe');
+    assert.equal(probe?.object, 'exconnect');
+    assert.deepEqual(Array.from(probe?.params || []), ['section', 'kind']);
 
     assert.equal(await client.perform(async () => ({ ok: true }), 'Saved'), true);
     assert.deepEqual(notifications.pop(), { title: null, body: 'Saved', severity: 'info' });

@@ -8,6 +8,8 @@ const apply = rpc.declare({ object: 'exconnect', method: 'apply', reject: true }
 const stop = rpc.declare({ object: 'exconnect', method: 'stop', reject: true });
 const validate = rpc.declare({ object: 'exconnect', method: 'validate', reject: true });
 const updateAssets = rpc.declare({ object: 'exconnect', method: 'update_assets', reject: true });
+const probe = rpc.declare({ object: 'exconnect', method: 'probe', params: [ 'section', 'kind' ], reject: true });
+const logs = rpc.declare({ object: 'exconnect', method: 'logs', reject: true });
 const refreshSubscription = rpc.declare({
 	object: 'exconnect-subscriptions',
 	method: 'refresh',
@@ -21,6 +23,8 @@ return baseclass.extend({
 	stop: stop,
 	validate: validate,
 	updateAssets: updateAssets,
+	probe: probe,
+	logs: logs,
 	refreshSubscription: refreshSubscription,
 
 	validateHttps: function (sectionId, value) {

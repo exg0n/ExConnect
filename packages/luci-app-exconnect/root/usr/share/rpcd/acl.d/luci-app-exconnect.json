@@ -2,12 +2,12 @@
 	"luci-app-exconnect": {
 		"description": "Manage ExConnect",
 		"read": {
-			"ubus": { "exconnect": [ "status" ] },
+			"ubus": { "exconnect": [ "status", "logs" ] },
 			"uci": [ "exconnect" ]
 		},
 		"write": {
 			"ubus": {
-				"exconnect": [ "apply", "stop", "update_assets", "validate" ],
+				"exconnect": [ "apply", "stop", "update_assets", "validate", "probe" ],
 				"exconnect-subscriptions": [ "refresh" ]
 			},
 			"uci": [ "exconnect" ]

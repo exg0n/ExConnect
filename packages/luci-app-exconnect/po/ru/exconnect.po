@@ -1,11 +1,77 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: ExConnect 0.1.0\n"
+"Project-Id-Version: ExConnect 0.2.0\n"
 "Language: ru\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Profiles and subscriptions"
+msgstr "Профили и подписки"
+
+msgid "Routing format"
+msgstr "Формат маршрутизации"
+
+msgid "Rule editor"
+msgstr "Редактор правил"
+
+msgid "Rule table"
+msgstr "Таблица правил"
+
+msgid "Only the selected editor supplies active rules. Switching editors keeps existing rules."
+msgstr "Применяются правила выбранного редактора. При переключении оба набора правил сохраняются."
+
+msgid "RoutingA rules"
+msgstr "Правила RoutingA"
+
+msgid "Use default: direct and domain(...), geoip(...), ip(...) or protocol(...), followed by ->direct, ->proxy or ->block. Lines starting with # are comments."
+msgstr "Действие по умолчанию задаётся строкой default: direct. Укажи domain(...), geoip(...), ip(...) или protocol(...), затем ->direct, ->proxy или ->block. Строки с # в начале служат комментариями."
+
+msgid "Diagnostics"
+msgstr "Диагностика"
+
+msgid "Could not read the ExConnect log."
+msgstr "Не удалось прочитать журнал ExConnect."
+
+msgid "No ExConnect log entries."
+msgstr "В журнале ExConnect пока нет записей."
+
+msgid "ExConnect log"
+msgstr "Журнал ExConnect"
+
+msgid "Testing connection…"
+msgstr "Проверяем соединение…"
+
+msgid "The connection test failed."
+msgstr "Проверка соединения завершилась ошибкой."
+
+msgid "Check ping"
+msgstr "Проверить пинг"
+
+msgid "HTTPS latency: %s ms"
+msgstr "Задержка HTTPS — %s мс"
+
+msgid "Test download speed"
+msgstr "Измерить скорость загрузки"
+
+msgid "Download: %s Mbit/s (%s bytes)"
+msgstr "Скорость загрузки — %s Мбит/с (%s байт)"
+
+msgid "Connection test"
+msgstr "Проверка соединения"
+
+msgid "Tests open a separate connection from the router through the selected saved profile before or while the service runs."
+msgstr "Тесты открывают отдельное соединение с роутера через выбранный профиль. Их можно запустить при остановленной и при работающей службе."
+
+msgid "Ping is an HTTPS response time. The download test transfers up to 2 MB."
+msgstr "Пинг показывает время ответа по HTTPS. Тест скорости скачивает до 2 МБ."
+
+msgid "Save a connection profile in Profiles and subscriptions first."
+msgstr "Сначала сохрани профиль подключения на вкладке «Профили и подписки»."
+
+msgid "Refresh log"
+msgstr "Обновить журнал"
 
 msgid "Action"
 msgstr "Действие"

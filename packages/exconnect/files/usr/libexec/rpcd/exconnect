@@ -5,6 +5,43 @@
 runtime=/var/run/exconnect
 control=/usr/libexec/exconnect/control
 
+error_reply() {
+	json_init
+	json_add_boolean ok 0
+	json_add_string error "$1"
+	json_dump
+}
+
+probe_reply() {
+	local section kind section_type kind_type
+	json_load "$(cat)" || { error_reply 'Invalid connection test request.'; return; }
+	json_get_type section_type section
+	json_get_type kind_type kind
+	if [ "$section_type" != string ] || [ "$kind_type" != string ]; then
+		error_reply 'Invalid connection test request.'
+		return
+	fi
+	json_get_var section section
+	json_get_var kind kind
+	/usr/libexec/exconnect/probe "$section" "$kind"
+}
+
+logs_reply() {
+	local log previous_error
+	log="$(logread -l 500 -e '^exconnect' 2>/dev/null)" || { error_reply 'Could not read the system log.'; return; }
+	log="$(printf '%s\n' "$log" | awk '$7 ~ /^exconnect(-core)?(\[[0-9]+\])?:$/' | tail -n 80)"
+	previous_error="$(cat "$runtime/last_error" 2>/dev/null || :)"
+	if [ -n "$previous_error" ]; then
+		log="${log}${log:+
+}ExConnect: $previous_error"
+	fi
+	log="$(printf '%s\n' "$log" | sed -E 's#([[:alnum:]+.-]+://)[^[:space:]]+#\1[redacted]#g')"
+	json_init
+	json_add_boolean ok 1
+	json_add_string log "$log"
+	json_dump
+}
+
 action_reply() {
 	local action="$1" value error
 	json_init
@@ -40,10 +77,16 @@ status_reply() {
 
 case "$1:$2" in
 	list:)
-		printf '%s\n' '{"status":{},"apply":{},"stop":{},"validate":{},"update_assets":{}}'
+		printf '%s\n' '{"status":{},"apply":{},"stop":{},"validate":{},"update_assets":{},"probe":{"section":"","kind":""},"logs":{}}'
 		;;
 	call:status)
 		status_reply
+		;;
+	call:probe)
+		probe_reply
+		;;
+	call:logs)
+		logs_reply
 		;;
 	call:apply|call:stop|call:validate|call:update_assets)
 		action_reply "$2"

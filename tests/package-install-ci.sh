@@ -36,6 +36,7 @@ done
 test "$(uci -q get exconnect.main.enabled)" = 0
 test -x /etc/init.d/exconnect
 test -x /usr/libexec/exconnect/control
+test -x /usr/libexec/exconnect/probe
 test -x /usr/libexec/exconnect/run
 test -x /usr/libexec/rpcd/exconnect
 test -x /usr/libexec/rpcd/exconnect-subscriptions
@@ -44,6 +45,8 @@ test -s /usr/share/rpcd/acl.d/luci-app-exconnect.json
 test -s /usr/lib/lua/luci/i18n/exconnect.ru.lmo
 test -s /www/luci-static/resources/exconnect/client.js
 test -s /www/luci-static/resources/view/exconnect/overview.js
+test -s /www/luci-static/resources/view/exconnect/diagnostics.js
+test -s /www/luci-static/resources/exconnect/subscriptions.js
 IPKG_INSTROOT=/ apk --preserve-env add coreutils-base64 diffutils
 /bin/sh /tmp/runtime.sh
 OPENWRT

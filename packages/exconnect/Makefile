@@ -1,8 +1,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=exconnect
-PKG_VERSION:=0.1.0
-PKG_RELEASE:=2
+PKG_VERSION:=0.2.0
+PKG_RELEASE:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -39,7 +39,9 @@ define Package/exconnect/install
 	$(INSTALL_DATA) ./files/usr/libexec/exconnect/generate.uc $(1)/usr/libexec/exconnect/generate.uc
 	$(INSTALL_DATA) ./files/usr/libexec/exconnect/subscriptions.uc $(1)/usr/libexec/exconnect/subscriptions.uc
 	$(INSTALL_BIN) ./files/usr/libexec/exconnect/control $(1)/usr/libexec/exconnect/control
-	$(INSTALL_BIN) ./files/usr/libexec/exconnect/run $(1)/usr/libexec/exconnect/run
+	$(INSTALL_BIN) ./files/usr/libexec/exconnect/run $(1)/usr/libexec/exconnect/exconnect-core
+	$(LN) exconnect-core $(1)/usr/libexec/exconnect/run
+	$(INSTALL_BIN) ./files/usr/libexec/exconnect/probe $(1)/usr/libexec/exconnect/probe
 	$(INSTALL_BIN) ./files/usr/libexec/rpcd/exconnect $(1)/usr/libexec/rpcd/exconnect
 	$(INSTALL_BIN) ./files/usr/libexec/rpcd/exconnect-subscriptions $(1)/usr/libexec/rpcd/exconnect-subscriptions
 endef
