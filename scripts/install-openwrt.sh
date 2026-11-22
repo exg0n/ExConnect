@@ -11,7 +11,7 @@ grep -qx "DISTRIB_RELEASE='25.12.5'" /etc/openwrt_release || fail 'ExConnect req
 IFS= read -r token && [ -n "$token" ] || fail 'A GitHub token is required for this private repository.'
 
 api=https://api.github.com/repos/exg0n/ExConnect
-artifact_name=exconnect-openwrt-25.12.5-x86-64
+artifact_name=exconnect-openwrt-25.12.5
 workdir=$(mktemp -d /tmp/exconnect-install.XXXXXX)
 trap 'rm -rf "$workdir"' EXIT
 trap 'exit 1' HUP INT TERM

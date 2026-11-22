@@ -41,7 +41,7 @@ case "$url" in
     "$api/actions/workflows/openwrt.yml/runs?branch=main&event=push&status=success&per_page=1")
         printf '%s\n' '{"workflow_runs":[{"id":101}]}' > "$output"
         ;;
-    "$api/actions/runs/101/artifacts?name=exconnect-openwrt-25.12.5-x86-64&per_page=1")
+    "$api/actions/runs/101/artifacts?name=exconnect-openwrt-25.12.5&per_page=1")
         printf '%s\n' '{"artifacts":[{"id":202,"expired":false}]}' > "$output"
         ;;
     "$api/actions/artifacts/202/zip")

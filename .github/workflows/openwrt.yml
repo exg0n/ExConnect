@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: node --test tests/source.test.cjs
-      - run: bash -n scripts/build-openwrt.sh
+      - run: bash -n scripts/build-openwrt.sh && bash -n tests/package-install-ci.sh
 
   sdk:
     needs: source
@@ -61,54 +61,46 @@ jobs:
         run: bash scripts/build-openwrt.sh "$RUNNER_TEMP/openwrt-sdk"
       - name: Test installation of the built packages
         run: |
-          set -- dist/exconnect-[0-9]*.apk dist/luci-app-exconnect-[0-9]*.apk
-          test "$#" -eq 2
-          test -f "$1"
-          test -f "$2"
           rootfs="$RUNNER_TEMP/openwrt-install-test"
           mkdir "$rootfs"
           sudo tar -xzf "$RUNNER_TEMP/$ROOTFS_ARCHIVE" -C "$rootfs"
-          sudo mkdir -p "$rootfs/dev" "$rootfs/proc" "$rootfs/tmp/lock"
-          sudo cp -L --remove-destination /etc/resolv.conf "$rootfs/etc/resolv.conf"
-          python3 -m zipfile -c "$RUNNER_TEMP/exconnect-apks.zip" "$@"
-          sudo cp "$RUNNER_TEMP/exconnect-apks.zip" scripts/install-openwrt.sh \
-            tests/installer-smoke.sh tests/runtime.sh tests/proxy-smoke.sh "$rootfs/tmp/"
-          sudo unshare --mount --propagation private bash -e -s -- "$rootfs" <<'HOST'
-          rootfs=$1
-          mount --bind /dev "$rootfs/dev"
-          mount -t proc proc "$rootfs/proc"
-          chroot "$rootfs" /bin/sh -e -s <<'OPENWRT'
-          apk update
-          # Treat the chroot as an offline image so package hooks cannot start services or load modules.
-          IPKG_INSTROOT=/ apk add jsonfilter unzip
-          IPKG_INSTROOT=/ /bin/sh /tmp/installer-smoke.sh /tmp/install-openwrt.sh /tmp/exconnect-apks.zip
-          for package in exconnect luci-app-exconnect xray-core luci-light uhttpd kmod-nft-tproxy; do
-            apk info -e "$package"
-          done
-          for tool in xray ucode curl nft ip ss flock; do
-            command -v "$tool"
-          done
-          test "$(uci -q get exconnect.main.enabled)" = 0
-          test -x /etc/init.d/exconnect
-          test -x /usr/libexec/exconnect/control
-          test -x /usr/libexec/exconnect/run
-          test -x /usr/libexec/rpcd/exconnect
-          test -x /usr/libexec/rpcd/exconnect-subscriptions
-          test -s /usr/share/luci/menu.d/luci-app-exconnect.json
-          test -s /usr/share/rpcd/acl.d/luci-app-exconnect.json
-          test -s /usr/lib/lua/luci/i18n/exconnect.ru.lmo
-          test -s /www/luci-static/resources/exconnect/client.js
-          test -s /www/luci-static/resources/view/exconnect/overview.js
-          IPKG_INSTROOT=/ apk add coreutils-base64 diffutils
-          /bin/sh /tmp/runtime.sh
-          OPENWRT
-          unshare --net bash -e -c '
-            ip link set lo up
-            chroot "$1" /bin/sh /tmp/proxy-smoke.sh --disposable-openwrt
-          ' bash "$rootfs"
-          HOST
+          bash tests/package-install-ci.sh "$rootfs" dist
       - uses: actions/upload-artifact@v4
         with:
-          name: exconnect-openwrt-25.12.5-x86-64
+          name: exconnect-openwrt-25.12.5
           path: dist/*.apk
           if-no-files-found: error
+
+  arm64:
+    needs: sdk
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    env:
+      OPENWRT_URL: https://downloads.openwrt.org/releases/25.12.5/targets/rockchip/armv8
+      OPENWRT_IMAGE: openwrt-25.12.5-rockchip-armv8-friendlyarm_nanopi-r3s-ext4-sysupgrade.img.gz
+      OPENWRT_SHA256: 0d5d5da4b610ec1b167e17708d15689b9a203a91e0f22e997abe3a3992ac2e79
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: exconnect-openwrt-25.12.5
+          path: dist
+      - name: Prepare NanoPi R3S OpenWrt userspace
+        run: |
+          archive="$RUNNER_TEMP/$OPENWRT_IMAGE"
+          curl --fail --location --retry 3 --output "$archive" "$OPENWRT_URL/$OPENWRT_IMAGE"
+          printf '%s  %s\n' "$OPENWRT_SHA256" "$archive" | sha256sum --check
+          disk="$RUNNER_TEMP/openwrt-r3s.img"
+          # Decode the gzip member before OpenWrt's appended sysupgrade metadata.
+          python3 -c 'import sys,zlib; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read(), 31))' < "$archive" > "$disk"
+          sector=$(partx --show --noheadings --raw --nr 2 --output START "$disk")
+          rootfs="$RUNNER_TEMP/openwrt-r3s-rootfs"
+          mount_dir=$(mktemp -d)
+          mkdir "$rootfs"
+          sudo mount -t ext4 -o "loop,ro,noload,offset=$((sector * 512))" "$disk" "$mount_dir"
+          trap 'sudo umount "$mount_dir"' EXIT
+          sudo cp -a "$mount_dir/." "$rootfs/"
+          grep -qx "DISTRIB_TARGET='rockchip/armv8'" "$rootfs/etc/openwrt_release"
+          grep -qx "DISTRIB_ARCH='aarch64_generic'" "$rootfs/etc/openwrt_release"
+      - name: Test installation in NanoPi R3S userspace
+        run: bash tests/package-install-ci.sh "$RUNNER_TEMP/openwrt-r3s-rootfs" dist
