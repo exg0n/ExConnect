@@ -196,8 +196,10 @@ printf '%s\n' '{}' | /usr/libexec/rpcd/exconnect call validate > "$fixture/valid
 [ "$(jsonfilter -i "$fixture/validation-result.json" -e '@.ok')" = false ] ||
 	fail 'Validation accepted a missing rule data file.'
 error=$(jsonfilter -i "$fixture/validation-result.json" -e '@.error')
-printf '%s\n' "$error" | grep -Fq 'exconnect-test-missing.dat is missing'
-printf '%s\n' "$error" | grep -Fq 'Download the configured files in Rule data'
+printf '%s\n' "$error" | grep -Fq 'exconnect-test-missing.dat is missing' ||
+	fail "Missing DAT error did not identify the file: $error"
+printf '%s\n' "$error" | grep -Fq 'Download the configured files in Rule data' ||
+	fail "Missing DAT error did not explain recovery: $error"
 uci delete exconnect.missing_data.domains
 uci add_list exconnect.missing_data.ips=telegram
 uci commit exconnect
@@ -205,7 +207,8 @@ printf '%s\n' '{}' | /usr/libexec/rpcd/exconnect call validate > "$fixture/valid
 [ "$(jsonfilter -i "$fixture/validation-result.json" -e '@.ok')" = false ] ||
 	fail 'Validation accepted an invalid IP selector.'
 error=$(jsonfilter -i "$fixture/validation-result.json" -e '@.error')
-printf '%s\n' "$error" | grep -Fq 'invalid IP: telegram'
+printf '%s\n' "$error" | grep -Eiq '(invalid IP:|illegal ip rule:) telegram' ||
+	fail "Routing error did not identify the invalid IP selector: $error"
 uci delete exconnect.missing_data
 uci commit exconnect
 [ -s "$runtime/ready" ]

@@ -97,13 +97,21 @@ test('LuCI distinguishes read-only status and write operations', () => {
     const { read: readonly, write } = acl;
     assert.ok(readonly.uci.includes('exconnect'));
     assert.ok(write.uci.includes('exconnect'));
-    assert.deepEqual(new Set(readonly.ubus.exconnect), new Set(['status', 'logs']));
-    for (const method of ['apply', 'stop', 'update_assets', 'validate', 'probe']) {
+    assert.deepEqual(new Set(readonly.ubus.exconnect), new Set(['status', 'logs', 'assets_status']));
+    for (const method of ['apply', 'stop', 'update_assets', 'validate', 'probe', 'prepare_asset_upload', 'upload_asset']) {
         assert.ok(write.ubus.exconnect.includes(method), method);
     }
     assert.ok(!write.ubus.exconnect.includes('*'));
     assert.equal(readonly.ubus['exconnect-subscriptions'], undefined);
     assert.deepEqual(write.ubus['exconnect-subscriptions'], ['refresh']);
+    assert.equal(readonly.file, undefined);
+    assert.equal(readonly['cgi-io'], undefined);
+    assert.deepEqual(write['cgi-io'], ['upload']);
+    assert.deepEqual(write.file, {
+        '/var/run/exconnect/uploads/upload.*': ['write'],
+        '/tmp/run/exconnect/uploads/upload.*': ['write'],
+    });
+    assert.equal(write.ubus.file, undefined);
 });
 
 test('LuCI modules compile in the browser-style wrapper', () => {

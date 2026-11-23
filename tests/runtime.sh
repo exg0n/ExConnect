@@ -3,6 +3,7 @@ set -eu
 
 generator=${1:-/usr/libexec/exconnect/generate.uc}
 subscriptions=${2:-/usr/libexec/exconnect/subscriptions.uc}
+dat_tag=${3:-/usr/libexec/exconnect/dat-tag.uc}
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
 trap 'exit 1' HUP INT TERM
@@ -66,6 +67,20 @@ EOF
 # Minimal V2Ray protobuf lists with the tag FIXTURE, a full domain and a CIDR.
 printf '\012\033\012\007FIXTURE\022\020\010\003\022\014example.test' > "$fixture/qa-geosite.dat"
 printf '\012\023\012\007FIXTURE\022\010\012\004\300\000\002\000\020\030' > "$fixture/qa-geoip.dat"
+
+for kind in geosite geoip; do
+	[ "$(ucode "$dat_tag" "$fixture/qa-$kind.dat")" = FIXTURE ]
+done
+printf 'not a protobuf list' > "$fixture/invalid.dat"
+printf '\012\033\012\007FIX' > "$fixture/truncated.dat"
+printf '\022\001x' > "$fixture/no-tags.dat"
+printf '\012\005\012\003A:B' > "$fixture/invalid-tag.dat"
+for kind in invalid truncated no-tags invalid-tag; do
+	if ucode "$dat_tag" "$fixture/$kind.dat" > "$fixture/tag" 2> "$fixture/tag-error"; then
+		printf 'DAT validation accepted %s input\n' "$kind" >&2
+		exit 1
+	fi
+done
 
 for scheme in hysteria2 hy2; do
 	set_fixture "$scheme://qa%3Apass@example.test:8443/?sni=proxy.example.test&obfs=salamander&obfs-password=maskpass#Fixture"

@@ -26,6 +26,32 @@ probe_reply() {
 	/usr/libexec/exconnect/probe "$section" "$kind"
 }
 
+upload_reply() {
+	local name token name_type token_type
+	json_load "$(cat)" || { error_reply 'Invalid DAT upload request.'; return; }
+	json_get_type name_type name
+	json_get_type token_type token
+	if [ "$name_type" != string ] || [ "$token_type" != string ]; then
+		error_reply 'Invalid DAT upload request.'
+		return
+	fi
+	json_get_var name name
+	json_get_var token token
+	/usr/libexec/exconnect/assets upload "$name" "$token"
+}
+
+discard_upload_reply() {
+	local token token_type
+	json_load "$(cat)" || { error_reply 'Invalid DAT upload request.'; return; }
+	json_get_type token_type token
+	if [ "$token_type" != string ]; then
+		error_reply 'Invalid DAT upload request.'
+		return
+	fi
+	json_get_var token token
+	/usr/libexec/exconnect/assets cancel_upload "$token"
+}
+
 logs_reply() {
 	local log previous_error
 	log="$(logread -l 500 -e '^exconnect' 2>/dev/null)" || { error_reply 'Could not read the system log.'; return; }
@@ -77,7 +103,7 @@ status_reply() {
 
 case "$1:$2" in
 	list:)
-		printf '%s\n' '{"status":{},"apply":{},"stop":{},"validate":{},"update_assets":{},"probe":{"section":"","kind":""},"logs":{}}'
+		printf '%s\n' '{"status":{},"apply":{},"stop":{},"validate":{},"update_assets":{},"assets_status":{},"prepare_asset_upload":{},"discard_asset_upload":{"token":""},"upload_asset":{"name":"","token":""},"probe":{"section":"","kind":""},"logs":{}}'
 		;;
 	call:status)
 		status_reply
@@ -88,7 +114,22 @@ case "$1:$2" in
 	call:logs)
 		logs_reply
 		;;
-	call:apply|call:stop|call:validate|call:update_assets)
+	call:update_assets)
+		/usr/libexec/exconnect/assets start
+		;;
+	call:assets_status)
+		/usr/libexec/exconnect/assets status
+		;;
+	call:prepare_asset_upload)
+		/usr/libexec/exconnect/assets prepare_upload
+		;;
+	call:upload_asset)
+		upload_reply
+		;;
+	call:discard_asset_upload)
+		discard_upload_reply
+		;;
+	call:apply|call:stop|call:validate)
 		action_reply "$2"
 		;;
 	*)

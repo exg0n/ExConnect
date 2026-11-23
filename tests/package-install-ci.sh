@@ -18,7 +18,7 @@ python3 -m zipfile -c "$workdir/exconnect-apks.zip" "$@"
 sudo mkdir -p "$rootfs/dev" "$rootfs/proc" "$rootfs/tmp/lock"
 sudo cp -L --remove-destination /etc/resolv.conf "$rootfs/etc/resolv.conf"
 sudo cp "$workdir/exconnect-apks.zip" "$project_dir/scripts/install-openwrt.sh" \
-    "$project_dir"/tests/{installer-smoke,runtime,proxy-smoke}.sh "$rootfs/tmp/"
+    "$project_dir"/tests/{installer-smoke,runtime,proxy-smoke,assets-smoke}.sh "$rootfs/tmp/"
 
 sudo unshare --mount --propagation private bash -e -s -- "$rootfs" <<'HOST'
 rootfs=$1
@@ -35,7 +35,10 @@ for tool in xray ucode curl nft ip ss flock; do
 done
 test "$(uci -q get exconnect.main.enabled)" = 0
 test -x /etc/init.d/exconnect
+test -x /etc/init.d/exconnect-assets
 test -x /usr/libexec/exconnect/control
+test -x /usr/libexec/exconnect/assets
+test -s /usr/libexec/exconnect/dat-tag.uc
 test -x /usr/libexec/exconnect/probe
 test -x /usr/libexec/exconnect/run
 test -x /usr/libexec/rpcd/exconnect
@@ -46,6 +49,7 @@ test -s /usr/lib/lua/luci/i18n/exconnect.ru.lmo
 test -s /www/luci-static/resources/exconnect/client.js
 test -s /www/luci-static/resources/view/exconnect/overview.js
 test -s /www/luci-static/resources/view/exconnect/diagnostics_v2.js
+test -s /www/luci-static/resources/view/exconnect/assets_v2.js
 test -s /www/luci-static/resources/exconnect/subscriptions.js
 IPKG_INSTROOT=/ apk --preserve-env add coreutils-base64 diffutils
 /bin/sh /tmp/runtime.sh
@@ -53,5 +57,6 @@ OPENWRT
 unshare --net bash -e -c '
     ip link set lo up
     chroot "$1" /bin/sh /tmp/proxy-smoke.sh --disposable-openwrt
+    chroot "$1" /bin/sh /tmp/assets-smoke.sh --disposable-openwrt
 ' bash "$rootfs"
 HOST

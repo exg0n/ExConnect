@@ -337,5 +337,47 @@ msgstr "Домены RunetFreedom"
 msgid "RunetFreedom IP addresses"
 msgstr "IP-адреса RunetFreedom"
 
+msgid "Add Xray-compatible .dat lists from HTTPS sources or upload your own files. File size is limited by the available space on the router."
+msgstr "Добавляйте совместимые с Xray списки .dat по HTTPS или загружайте свои файлы. Размер файла ограничен доступным местом на роутере."
+
+msgid "Could not read the rule data status."
+msgstr "Не удалось получить состояние загрузки списков."
+
+msgid "Preparing rule data."
+msgstr "Подготовка списков."
+
+msgid "Downloading rule data."
+msgstr "Загрузка списков."
+
+msgid "Checking rule data."
+msgstr "Проверка списков."
+
+msgid "Installing rule data."
+msgstr "Установка списков."
+
+msgid "Received: %s MiB"
+msgstr "Получено %s МиБ"
+
+msgid "Ready to download or upload .dat lists."
+msgstr "Можно скачать списки или загрузить свои файлы .dat."
+
+msgid "Leave the URL empty for a list uploaded from your computer."
+msgstr "Для файла с компьютера оставьте адрес пустым."
+
+msgid "Local file"
+msgstr "Локальный файл"
+
+msgid "Upload .dat"
+msgstr "Загрузить .dat"
+
+msgid "Save a valid .dat filename before uploading."
+msgstr "Перед загрузкой сохраните корректное имя файла .dat."
+
+msgid "Save and apply the filenames and sources before downloading or uploading. Reference a file and its tag in Routing, for example ext:geosite-custom.dat:tag."
+msgstr "Перед загрузкой сохраните и примените имена файлов и источники. В маршрутизации укажите файл и его тег, например ext:geosite-custom.dat:tag."
+
+msgid "Rule data transfer"
+msgstr "Загрузка данных для правил"
+
 msgid "Deleting a subscription removes its imported profiles. If one of them is selected, it becomes a manual profile."
 msgstr "При удалении подписки удаляются её импортированные профили. Если один из них выбран для подключения, он сохраняется как ручной профиль."

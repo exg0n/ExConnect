@@ -42,7 +42,7 @@ validate_config() {
 	if [ -n "$detail" ]; then
 		logger -t exconnect "Configuration check failed: $detail"
 		if printf '%s\n' "$detail" | grep -Fq 'no such file or directory'; then
-			missing="$(printf '%s\n' "$detail" | sed -nE 's/.*failed to open file: ([a-zA-Z0-9][a-zA-Z0-9_.-]*\.dat).*/\1/p')"
+			missing="$(printf '%s\n' "$detail" | sed -nE 's/.*failed to open (file: )?([a-zA-Z0-9][a-zA-Z0-9_.-]*\.dat).*/\2/p')"
 			if [ -n "$missing" ]; then
 				fail "Rule data file $missing is missing. Download the configured files in Rule data, then check the configuration again."
 				return 1
@@ -132,64 +132,53 @@ apply() {
 	fail "$error"
 }
 
-# Downloads use a separate directory. Update the active DAT generation as a unit.
-update_assets() {
-	local candidate name url count=0 previous actual detail deadline remaining
-	stage="$(mktemp -d "$asset_root/geo-update.XXXXXX")" || return 1
-	candidate="$stage/data"
-	trap 'rm -rf "$stage"' EXIT
-	mkdir "$candidate" || return 1
-	detail="$(ucode "$generator" assets 2>&1 >"$stage/sources")" ||
-		{ fail "$detail"; return 1; }
-	for actual in "$assets"/*.dat; do
-		[ ! -f "$actual" ] || cp "$actual" "$candidate/" || return 1
-	done
-	deadline=$(($(date +%s) + 23))
-	while IFS=' ' read -r name url; do
-		remaining=$((deadline - $(date +%s)))
-		[ "$remaining" -gt 0 ] || { fail "DAT downloads timed out"; return 1; }
-		if ! curl --fail --silent --show-error --location --globoff \
-			--proto '=https' --proto-redir '=https' --max-redirs 4 \
-			--connect-timeout 5 --max-time "$remaining" --max-filesize 134217728 \
-			--output "$candidate/$name" -- "$url" || [ ! -s "$candidate/$name" ]; then
-			fail "Could not download DAT file $name"
+commit_assets() {
+	local stage="$1" previous pid
+	case "$stage" in /etc/exconnect/geo-update.??????) ;; *) fail 'Invalid rule data task.'; return 1 ;; esac
+	[ -d "$stage/data" ] && [ ! -L "$stage" ] || { fail 'The staged rule data is missing.'; return 1; }
+	ucode "$generator" asset_snapshot > "$stage/config.current" || return 1
+	if [ "$(cat "$stage/config.snapshot")" != "$(cat "$stage/config.current")" ]; then
+		fail 'The rule data sources changed during the task. Start the task again.'
+		return 1
+	fi
+	# Individually valid lists can be uploaded before all saved rules are ready.
+	# Keep the current generation when a running service's rules would reject it.
+	if read -r pid 2>/dev/null < "$runtime/ready" && kill -0 "$pid" 2>/dev/null; then
+		if ! XRAY_LOCATION_ASSET="$stage/data" /usr/bin/xray run -test -config "$runtime/config.json" >/dev/null 2>&1; then
+			fail 'The new rule data does not match the running configuration. Stop the service before replacing incompatible lists.'
 			return 1
 		fi
-		count=$((count + 1))
-	done <"$stage/sources"
-	if [ "$count" -eq 0 ]; then
-		printf '0\n'
-		return 0
-	fi
-
-	# A fresh disabled service can fetch data before a profile is selected.
-	if is_enabled || [ -n "$(uci -q -C '' -P "$runtime" get exconnect.main.profile)" ]; then
-		validate_config "$stage/config.json" "$stage/lan.nft" "$candidate" || return 1
+		validate_config "$stage/config.json" "$stage/lan.nft" "$stage/data" || return 1
 	fi
 	previous="$stage/previous"
 	if [ -d "$assets" ]; then
 		mv "$assets" "$previous" || return 1
 	fi
-	if ! mv "$candidate" "$assets"; then
-		[ ! -d "$previous" ] || mv "$previous" "$assets"
+	if ! mv "$stage/data" "$assets"; then
+		if [ -d "$previous" ] && ! mv "$previous" "$assets"; then
+			fail "Could not restore DAT files. The previous generation is retained in $previous."
+			return 1
+		fi
 		fail "Could not install DAT files"
 		return 1
 	fi
 	rm -f "$runtime/last_error"
-	printf '%s\n' "$count"
 }
 
 case "$1" in
 	prepare)
 		prepare
 		;;
-	validate|apply|update_assets|stop)
+	update_assets)
+		exec /usr/libexec/exconnect/assets sync
+		;;
+	validate|apply|commit_assets|stop)
 		exec 9>"$runtime/control.lock"
 		flock -w 3 9 || { fail "Another ExConnect operation is running"; exit 1; }
 		case "$1" in
 			validate) validate ;;
 			apply) apply ;;
-			update_assets) update_assets ;;
+			commit_assets) commit_assets "$2" ;;
 			stop) stop ;;
 		esac
 		;;

@@ -1,0 +1,306 @@
+#!/bin/sh
+
+. /usr/share/libubox/jshn.sh
+
+runtime=/var/run/exconnect
+asset_root=/etc/exconnect
+generator=/usr/libexec/exconnect/generate.uc
+control=/usr/libexec/exconnect/control
+uploads="$runtime/uploads"
+umask 077
+mkdir -p "$runtime" "$asset_root" "$uploads" || exit 1
+chmod 700 "$runtime" "$asset_root" "$uploads" || exit 1
+
+reply_error() {
+	json_init
+	json_add_boolean ok 0
+	json_add_string error "$1"
+	json_dump
+}
+
+set_phase() {
+	printf '%s\n' "$1" > "$job/phase.new.$$" && mv -f "$job/phase.new.$$" "$job/phase"
+}
+
+job_error() {
+	printf '%s\n' "$1" > "$job/error"
+	printf '%s\n' "$1" > "$runtime/last_error"
+	set_phase error
+	return 1
+}
+
+current_job() {
+	job="$(cat "$runtime/assets-current" 2>/dev/null)"
+	case "$job" in
+		/etc/exconnect/geo-update.??????) [ -d "$job" ] && [ ! -L "$job" ] ;;
+		*) return 1 ;;
+	esac
+}
+
+job_running() {
+	local phase pid started
+	phase="$(cat "$job/phase" 2>/dev/null)"
+	case "$phase" in
+		starting|downloading|validating|installing) ;;
+		*) return 1 ;;
+	esac
+	pid="$(cat "$job/pid" 2>/dev/null)"
+	case "$pid" in
+		''|*[!0-9]*) ;;
+		*)
+			if kill -0 "$pid" 2>/dev/null && grep -Fq '/usr/libexec/exconnect/assets' "/proc/$pid/cmdline" 2>/dev/null; then
+				return 0
+			fi
+			;;
+	esac
+	started="$(cat "$job/started" 2>/dev/null)"
+	case "$started" in ''|*[!0-9]*) started=0 ;; esac
+	[ "$phase" = starting ] && [ "$(($(date +%s) - started))" -lt 15 ]
+}
+
+new_job() {
+	local previous detail
+	if current_job; then
+		job_running && return 2
+		previous=$job
+	fi
+	job="$(mktemp -d "$asset_root/geo-update.XXXXXX")" || return 1
+	date +%s > "$job/started"
+	set_phase starting
+	ucode "$generator" asset_snapshot > "$job/config.snapshot" || {
+		job_error 'Could not read the saved rule data settings.'
+		return 1
+	}
+	detail="$(ucode "$generator" assets 2>&1 > "$job/sources")" || {
+		job_error "$detail"
+		return 1
+	}
+	printf '%s\n' "$job" > "$runtime/assets-current.new.$$"
+	mv -f "$runtime/assets-current.new.$$" "$runtime/assets-current"
+	if [ -n "$previous" ] && [ ! -d "$previous/previous" ]; then
+		rm -rf "$previous"
+	fi
+}
+
+validate_dat() {
+	local file="$1" name="$2" tag kind result
+	tag="$(ucode /usr/libexec/exconnect/dat-tag.uc "$file" 2>/dev/null)" || {
+		job_error "DAT file $name is malformed or has no rule tags."
+		return 1
+	}
+	for kind in domain ip; do
+		json_init
+		json_add_array outbounds
+		json_add_object ''
+		json_add_string tag direct
+		json_add_string protocol freedom
+		json_close_object
+		json_close_array
+		json_add_object routing
+		json_add_array rules
+		json_add_object ''
+		json_add_string type field
+		json_add_string outboundTag direct
+		json_add_array "$kind"
+		json_add_string '' "ext:$name:$tag"
+		json_close_array
+		json_close_object
+		json_close_array
+		json_close_object
+		json_dump > "$job/dat-check.json"
+		XRAY_LOCATION_ASSET="$job/data" /usr/bin/xray run -test -config "$job/dat-check.json" >/dev/null 2>&1 8>&- &
+		child=$!
+		wait "$child"
+		result=$?
+		child=
+		[ "$result" -ne 0 ] || return 0
+	done
+	job_error "DAT file $name is not a valid Xray GeoSite or GeoIP list."
+}
+
+run_job() {
+	local name url actual count=0 upload_name detail result
+	child=
+	printf '%s\n' "$$" > "$job/pid"
+	trap interrupt_job HUP INT TERM
+	mkdir "$job/data" || { job_error 'Could not prepare the rule data directory.'; return 1; }
+	for actual in "$asset_root/geo"/*.dat; do
+		[ ! -f "$actual" ] || cp "$actual" "$job/data/" || {
+			job_error 'Could not stage the current rule data. Check free storage.'
+			return 1
+		}
+	done
+	if [ -f "$job/upload-name" ]; then
+		upload_name="$(cat "$job/upload-name")"
+		printf '%s\n' "$upload_name" > "$job/current"
+		mv "$job/upload.dat" "$job/data/$upload_name" || {
+			job_error 'Could not stage the uploaded DAT file.'
+			return 1
+		}
+		set_phase validating
+		validate_dat "$job/data/$upload_name" "$upload_name" || return 1
+		count=1
+	else
+		while IFS=' ' read -r name url; do
+			[ -n "$name" ] || continue
+			printf '%s\n' "$name" > "$job/current"
+			set_phase downloading
+			# Bound stalled connections, while allowing any file size and duration.
+			curl --fail --silent --show-error --location --globoff \
+				--proto '=https' --proto-redir '=https' --max-redirs 4 \
+				--connect-timeout 10 --speed-limit 1 --speed-time 60 \
+				--output "$job/data/$name" -- "$url" 2> "$job/curl-error" 8>&- &
+			child=$!
+			wait "$child"
+			result=$?
+			child=
+			if [ "$result" -ne 0 ] || [ ! -s "$job/data/$name" ]; then
+				job_error "Could not download DAT file $name. Check the source, connection and free storage."
+				return 1
+			fi
+			set_phase validating
+			validate_dat "$job/data/$name" "$name" || return 1
+			count=$((count + 1))
+		done < "$job/sources"
+	fi
+	set_phase installing
+	"$control" commit_assets "$job" 8>&- &
+	child=$!
+	wait "$child"
+	result=$?
+	child=
+	if [ "$result" -ne 0 ]; then
+		detail="$(cat "$runtime/last_error" 2>/dev/null)"
+		job_error "${detail:-Could not install the rule data.}"
+		return 1
+	fi
+	printf '%s\n' "$count" > "$job/updated"
+	set_phase completed
+}
+
+interrupt_job() {
+	trap - HUP INT TERM
+	if [ -n "$child" ]; then
+		kill "$child" 2>/dev/null || :
+		wait "$child" 2>/dev/null || :
+		child=
+	fi
+	job_error 'The rule data task was interrupted.'
+	exit 1
+}
+
+cleanup_job() {
+	rm -rf "$job/data"
+	[ "$(cat "$job/phase" 2>/dev/null)" != completed ] || rm -rf "$job/previous"
+	rm -f "$job/upload.dat" "$job/config.snapshot" "$job/config.current" "$job/config.json" "$job/lan.nft" "$job/sources" "$job/dat-check.json" "$job/curl-error" "$job/pid"
+}
+
+start_reply() {
+	local result name="$1" token="$2" source
+	exec 8> "$runtime/assets.lock"
+	flock -n 8 || { reply_error 'Another rule data task is running.'; return; }
+	if [ -n "$name" ]; then
+		printf '%s\n' "$name" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,96}\.dat$' || {
+			reply_error 'Enter a safe DAT filename.'; return
+		}
+		printf '%s\n' "$token" | grep -Eq '^[a-zA-Z0-9]{6}$' || {
+			reply_error 'Invalid upload reservation.'; return
+		}
+		source="$uploads/upload.$token"
+		[ -f "$source" ] && [ ! -L "$source" ] && [ -s "$source" ] || {
+			reply_error 'Upload a nonempty DAT file first.'; return
+		}
+	fi
+	new_job
+	result=$?
+	if [ "$result" -ne 0 ]; then
+		[ "$result" -ne 2 ] || { reply_error 'Another rule data task is running.'; return; }
+		reply_error 'Could not prepare the rule data task.'
+		return
+	fi
+	if [ -n "$name" ]; then
+		mv "$source" "$job/upload.dat" || { job_error 'Could not reserve the uploaded file.'; reply_error 'Could not reserve the uploaded file.'; return; }
+		printf '%s\n' "$name" > "$job/upload-name"
+	fi
+	if ! /etc/init.d/exconnect-assets start "$job" >/dev/null 2>&1; then
+		job_error 'Could not start the background rule data task.'
+		cleanup_job
+		reply_error 'Could not start the background rule data task.'
+		return
+	fi
+	json_init
+	json_add_boolean ok 1
+	json_add_boolean running 1
+	json_dump
+}
+
+status_reply() {
+	local running=0 phase=idle name bytes=0 updated=0 error
+	if current_job; then
+		phase="$(cat "$job/phase" 2>/dev/null)"
+		if job_running; then
+			running=1
+		else
+			case "$phase" in
+				starting|downloading|validating|installing) job_error 'The rule data task stopped before completion.'; phase=error ;;
+			esac
+		fi
+		name="$(cat "$job/current" 2>/dev/null)"
+		[ -z "$name" ] || bytes="$(stat -c %s "$job/data/$name" 2>/dev/null || printf 0)"
+		updated="$(cat "$job/updated" 2>/dev/null || printf 0)"
+		error="$(cat "$job/error" 2>/dev/null)"
+	fi
+	json_init
+	json_add_boolean ok 1
+	json_add_boolean running "$running"
+	json_add_string phase "${phase:-idle}"
+	json_add_string current_file "$name"
+	json_add_int downloaded_bytes "$bytes"
+	json_add_int updated "$updated"
+	[ -z "$error" ] || json_add_string error "$error"
+	json_dump
+}
+
+case "$1" in
+	prepare_upload)
+		find "$uploads" -type f -name 'upload.*' -mtime +1 -exec rm -f {} \;
+		file="$(mktemp "$uploads/upload.XXXXXX")" || { reply_error 'Could not reserve an upload file.'; exit; }
+		json_init
+		json_add_boolean ok 1
+		json_add_string token "${file##*.}"
+		json_add_string path "$file"
+		json_dump
+		;;
+	start) start_reply ;;
+	upload) start_reply "$2" "$3" ;;
+	cancel_upload)
+		if ! printf '%s\n' "$2" | grep -Eq '^[a-zA-Z0-9]{6}$'; then
+			reply_error 'Invalid upload reservation.'
+			exit
+		fi
+		if ! rm -f "$uploads/upload.$2"; then
+			reply_error 'Could not remove the temporary upload.'
+			exit
+		fi
+		json_init
+		json_add_boolean ok 1
+		json_dump
+		;;
+	status) status_reply ;;
+	run|sync)
+		exec 8> "$runtime/assets.lock"
+		if [ "$1" = sync ]; then
+			flock -n 8 || exit 1
+			new_job || exit 1
+		else
+			flock -w 10 8 || exit 1
+			job=$2
+			case "$job" in /etc/exconnect/geo-update.??????) ;; *) exit 1 ;; esac
+			[ -d "$job" ] && [ ! -L "$job" ] || exit 1
+		fi
+		trap cleanup_job EXIT
+		run_job || exit 1
+		[ "$1" != sync ] || cat "$job/updated"
+		;;
+	*) exit 2 ;;
+esac

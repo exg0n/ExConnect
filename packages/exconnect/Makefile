@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=exconnect
 PKG_VERSION:=0.2.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -35,8 +35,11 @@ define Package/exconnect/install
 	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d $(1)/etc/exconnect
 	$(INSTALL_CONF) ./files/etc/config/exconnect $(1)/etc/config/exconnect
 	$(INSTALL_BIN) ./files/etc/init.d/exconnect $(1)/etc/init.d/exconnect
+	$(INSTALL_BIN) ./files/etc/init.d/exconnect-assets $(1)/etc/init.d/exconnect-assets
 	$(INSTALL_DIR) $(1)/usr/libexec/exconnect $(1)/usr/libexec/rpcd
 	$(INSTALL_DATA) ./files/usr/libexec/exconnect/generate.uc $(1)/usr/libexec/exconnect/generate.uc
+	$(INSTALL_DATA) ./files/usr/libexec/exconnect/dat-tag.uc $(1)/usr/libexec/exconnect/dat-tag.uc
+	$(INSTALL_BIN) ./files/usr/libexec/exconnect/assets $(1)/usr/libexec/exconnect/assets
 	$(INSTALL_DATA) ./files/usr/libexec/exconnect/subscriptions.uc $(1)/usr/libexec/exconnect/subscriptions.uc
 	$(INSTALL_BIN) ./files/usr/libexec/exconnect/control $(1)/usr/libexec/exconnect/control
 	$(INSTALL_BIN) ./files/usr/libexec/exconnect/run $(1)/usr/libexec/exconnect/exconnect-core

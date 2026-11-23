@@ -23,7 +23,7 @@
 	"admin/services/exconnect/assets": {
 		"title": "Rule data",
 		"order": 40,
-		"action": { "type": "view", "path": "exconnect/assets" }
+		"action": { "type": "view", "path": "exconnect/assets_v2" }
 	},
 	"admin/services/exconnect/settings": {
 		"title": "Settings",

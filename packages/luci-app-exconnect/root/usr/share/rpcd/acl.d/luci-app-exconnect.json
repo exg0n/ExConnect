@@ -2,12 +2,17 @@
 	"luci-app-exconnect": {
 		"description": "Manage ExConnect",
 		"read": {
-			"ubus": { "exconnect": [ "status", "logs" ] },
+			"ubus": { "exconnect": [ "status", "logs", "assets_status" ] },
 			"uci": [ "exconnect" ]
 		},
 		"write": {
+			"cgi-io": [ "upload" ],
+			"file": {
+				"/var/run/exconnect/uploads/upload.*": [ "write" ],
+				"/tmp/run/exconnect/uploads/upload.*": [ "write" ]
+			},
 			"ubus": {
-				"exconnect": [ "apply", "stop", "update_assets", "validate", "probe" ],
+				"exconnect": [ "apply", "stop", "update_assets", "validate", "probe", "prepare_asset_upload", "discard_asset_upload", "upload_asset" ],
 				"exconnect-subscriptions": [ "refresh" ]
 			},
 			"uci": [ "exconnect" ]

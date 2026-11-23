@@ -368,10 +368,20 @@ function assets(uci) {
 	let seen = {};
 	uci.foreach(packageName, 'asset', (asset) => {
 		assert(assetName(asset.name) && !seen[asset.name], 'DAT filenames must be unique and end in .dat');
-		assert(asset.url && match(asset.url, /^https:\/\/[^[:space:][:cntrl:]]+$/), 'DAT source must use HTTPS');
 		seen[asset.name] = true;
+		if (!asset.url)
+			return;
+		assert(match(asset.url, /^https:\/\/[^[:space:][:cntrl:]]+$/), 'DAT source must use HTTPS');
 		printf('%s %s\n', asset.name, asset.url);
 	});
+}
+
+function assetSnapshot(uci) {
+	let sources = [];
+	uci.foreach(packageName, 'asset', (asset) => {
+		push(sources, { section: asset['.name'], name: asset.name, url: asset.url || '' });
+	});
+	printf('%J\n', sources);
 }
 
 function checkLinks() {
@@ -412,6 +422,9 @@ try {
 		break;
 	case 'assets':
 		assets(uci);
+		break;
+	case 'asset_snapshot':
+		assetSnapshot(uci);
 		break;
 	default:
 		assert(false, 'Unsupported generator command');
