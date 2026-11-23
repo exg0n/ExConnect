@@ -2,7 +2,14 @@
 'require uci';
 'require ui';
 'require view';
-'require exconnect.client as client';
+'require rpc';
+
+// Keep these calls with this view so an app upgrade can load diagnostics even
+// while the browser retains an earlier shared client module.
+const callLogs = rpc.declare({ object: 'exconnect', method: 'logs', reject: true });
+const callProbe = rpc.declare({
+	object: 'exconnect', method: 'probe', params: [ 'section', 'kind' ], reject: true
+});
 
 function showLog(node, result) {
 	node.textContent = !result || result.ok !== true
@@ -14,7 +21,7 @@ return view.extend({
 	load: function () {
 		return Promise.all([
 			uci.load('exconnect'),
-			L.resolveDefault(client.logs(), null)
+			L.resolveDefault(callLogs(), null)
 		]);
 	},
 
@@ -51,7 +58,7 @@ return view.extend({
 				'click': ui.createHandlerFn(this, function () {
 					controls.forEach(function (control) { control.disabled = true; });
 					resultNode.textContent = _('Testing connection…');
-					return client.probe(profile.value, kind).then(function (result) {
+					return callProbe(profile.value, kind).then(function (result) {
 						if (!result || result.ok !== true)
 							throw new Error(result && result.error || _('The connection test failed.'));
 						resultNode.textContent = formatResult(result);
@@ -93,7 +100,7 @@ return view.extend({
 					'type': 'button',
 					'class': 'cbi-button cbi-button-action',
 					'click': ui.createHandlerFn(this, function () {
-						return L.resolveDefault(client.logs(), null).then(function (result) {
+						return L.resolveDefault(callLogs(), null).then(function (result) {
 							showLog(log, result);
 						});
 					})

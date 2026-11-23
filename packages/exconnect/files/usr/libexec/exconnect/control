@@ -21,7 +21,7 @@ fail() {
 }
 
 validate_config() {
-	local json="$1" rules="$2" geo="$3" detail
+	local json="$1" rules="$2" geo="$3" detail missing
 	detail="$(ucode "$generator" generate 2>&1 >"$json")" ||
 		{ fail "$detail"; return 1; }
 	detail="$(ucode "$generator" nftables 2>&1 >"$rules")" ||
@@ -39,7 +39,19 @@ validate_config() {
 	# Log routing failures without copying profile parser output into syslog.
 	detail="$(printf '%s\n' "$detail" | grep -m 1 -F 'failed to build routing configuration' |
 		sed -E 's#([[:alnum:]+.-]+://)[^[:space:]]+#\1[redacted]#g')"
-	[ -z "$detail" ] || logger -t exconnect "Configuration check failed: $detail"
+	if [ -n "$detail" ]; then
+		logger -t exconnect "Configuration check failed: $detail"
+		if printf '%s\n' "$detail" | grep -Fq 'no such file or directory'; then
+			missing="$(printf '%s\n' "$detail" | sed -nE 's/.*failed to open file: ([a-zA-Z0-9][a-zA-Z0-9_.-]*\.dat).*/\1/p')"
+			if [ -n "$missing" ]; then
+				fail "Rule data file $missing is missing. Download the configured files in Rule data, then check the configuration again."
+				return 1
+			fi
+		fi
+		detail="$(printf '%s\n' "$detail" | sed -E 's/^.*failed to build routing configuration > //')"
+		fail "Xray could not load the routing rules. $detail"
+		return 1
+	fi
 	fail "Xray rejected the configuration. Check the settings and DAT tags."
 }
 
@@ -138,7 +150,7 @@ update_assets() {
 		[ "$remaining" -gt 0 ] || { fail "DAT downloads timed out"; return 1; }
 		if ! curl --fail --silent --show-error --location --globoff \
 			--proto '=https' --proto-redir '=https' --max-redirs 4 \
-			--connect-timeout 5 --max-time "$remaining" --max-filesize 33554432 \
+			--connect-timeout 5 --max-time "$remaining" --max-filesize 134217728 \
 			--output "$candidate/$name" -- "$url" || [ ! -s "$candidate/$name" ]; then
 			fail "Could not download DAT file $name"
 			return 1

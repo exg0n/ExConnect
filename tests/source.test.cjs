@@ -118,13 +118,17 @@ test('LuCI handles both successful and unsuccessful service actions', async () =
     const notifications = [];
     const declarations = [];
     const source = read(luci, 'htdocs/luci-static/resources/exconnect/client.js');
-    const client = vm.runInNewContext(`(function () { ${source}\n })()`, {
-        baseclass: { extend: object => object },
-        rpc: { declare: definition => { declarations.push(definition); } },
+    const Client = vm.runInNewContext(`(function () { ${source}\n })()`, {
+        baseclass: { extend: properties => class { constructor() { Object.assign(this, properties); } } },
+        rpc: { declare: definition => {
+            declarations.push(definition);
+            return (...args) => Promise.resolve({ definition, args });
+        } },
         ui: { addNotification: (title, body, severity) => notifications.push({ title, body, severity }) },
         E: (_tag, children) => children.join(''),
         _: input => input,
     });
+    const client = new Client();
 
     const logs = declarations.find(definition => definition.method === 'logs');
     assert.equal(logs?.object, 'exconnect');
@@ -132,6 +136,12 @@ test('LuCI handles both successful and unsuccessful service actions', async () =
     const probe = declarations.find(definition => definition.method === 'probe');
     assert.equal(probe?.object, 'exconnect');
     assert.deepEqual(Array.from(probe?.params || []), ['section', 'kind']);
+    assert.equal(typeof client.logs, 'function');
+    assert.equal(typeof client.probe, 'function');
+    assert.equal((await client.logs()).definition.method, 'logs');
+    const probeCall = await client.probe('saved_profile', 'latency');
+    assert.equal(probeCall.definition.method, 'probe');
+    assert.deepEqual(probeCall.args, ['saved_profile', 'latency']);
 
     assert.equal(await client.perform(async () => ({ ok: true }), 'Saved'), true);
     assert.deepEqual(notifications.pop(), { title: null, body: 'Saved', severity: 'info' });
@@ -139,6 +149,35 @@ test('LuCI handles both successful and unsuccessful service actions', async () =
     assert.deepEqual(notifications.pop(), { title: 'ExConnect', body: 'Invalid profile', severity: 'error' });
     assert.equal(await client.perform(async () => { throw new Error('Unavailable'); }, 'Saved'), false);
     assert.deepEqual(notifications.pop(), { title: 'ExConnect', body: 'Unavailable', severity: 'error' });
+});
+
+test('Diagnostics loads after an upgrade with an older cached client module', async () => {
+    const calls = [];
+    const declarations = [];
+    const diagnosticSource = read(views, `${readMenu()['admin/services/exconnect/diagnostics'].action.path}.js`);
+    const diagnostics = vm.runInNewContext(`(function () { ${diagnosticSource}\n })()`, {
+        client: {},
+        rpc: { declare: definition => {
+            declarations.push(definition);
+            return (...args) => {
+                calls.push({ method: definition.method, args });
+                return Promise.resolve({ ok: true, log: 'ExConnect test event' });
+            };
+        } },
+        view: { extend: properties => properties },
+        uci: { load: async () => 'loaded', sections: () => [], get: () => undefined },
+        ui: { createHandlerFn: (_context, handler) => handler },
+        L: { resolveDefault: (promise, fallback) => promise.catch(() => fallback), hasViewPermission: () => true },
+        E: (tag, attributes, children) => ({ tag, attributes, children, addEventListener() {} }),
+        _: value => value,
+    });
+
+    const data = await diagnostics.load();
+    assert.equal(data[0], 'loaded');
+    assert.equal(data[1].log, 'ExConnect test event');
+    assert.equal(calls[0].method, 'logs');
+    assert.deepEqual(declarations.map(definition => definition.method), ['logs', 'probe']);
+    assert.doesNotThrow(() => diagnostics.render(data));
 });
 
 test('Russian catalog translates LuCI menu labels and literal UI strings', () => {

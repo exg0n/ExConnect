@@ -45,7 +45,7 @@ test -s /usr/share/rpcd/acl.d/luci-app-exconnect.json
 test -s /usr/lib/lua/luci/i18n/exconnect.ru.lmo
 test -s /www/luci-static/resources/exconnect/client.js
 test -s /www/luci-static/resources/view/exconnect/overview.js
-test -s /www/luci-static/resources/view/exconnect/diagnostics.js
+test -s /www/luci-static/resources/view/exconnect/diagnostics_v2.js
 test -s /www/luci-static/resources/exconnect/subscriptions.js
 IPKG_INSTROOT=/ apk --preserve-env add coreutils-base64 diffutils
 /bin/sh /tmp/runtime.sh

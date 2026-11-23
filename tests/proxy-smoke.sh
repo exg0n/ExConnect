@@ -187,6 +187,31 @@ rm "$fixture/probe-partial-speed"
 kill -0 "$client_pid"
 probe http://127.0.0.1:17881
 
+# A missing DAT file must produce a useful error while the active service stays live.
+uci set exconnect.missing_data=rule
+uci set exconnect.missing_data.action=direct
+uci add_list 'exconnect.missing_data.domains=ext:exconnect-test-missing.dat:fixture'
+uci commit exconnect
+printf '%s\n' '{}' | /usr/libexec/rpcd/exconnect call validate > "$fixture/validation-result.json"
+[ "$(jsonfilter -i "$fixture/validation-result.json" -e '@.ok')" = false ] ||
+	fail 'Validation accepted a missing rule data file.'
+error=$(jsonfilter -i "$fixture/validation-result.json" -e '@.error')
+printf '%s\n' "$error" | grep -Fq 'exconnect-test-missing.dat is missing'
+printf '%s\n' "$error" | grep -Fq 'Download the configured files in Rule data'
+uci delete exconnect.missing_data.domains
+uci add_list exconnect.missing_data.ips=telegram
+uci commit exconnect
+printf '%s\n' '{}' | /usr/libexec/rpcd/exconnect call validate > "$fixture/validation-result.json"
+[ "$(jsonfilter -i "$fixture/validation-result.json" -e '@.ok')" = false ] ||
+	fail 'Validation accepted an invalid IP selector.'
+error=$(jsonfilter -i "$fixture/validation-result.json" -e '@.error')
+printf '%s\n' "$error" | grep -Fq 'invalid IP: telegram'
+uci delete exconnect.missing_data
+uci commit exconnect
+[ -s "$runtime/ready" ]
+kill -0 "$client_pid"
+probe http://127.0.0.1:17881
+
 kill "$upstream_pid"
 wait "$upstream_pid" || :
 upstream_pid=
